@@ -10,8 +10,8 @@ extern int size_apemodpatch_irx;
 extern void *audsrv_irx;
 extern int size_audsrv_irx;
 
-extern void *bt_pademu_irx;
-extern int size_bt_pademu_irx;
+extern void *btstack_irx;
+extern int size_btstack_irx;
 
 extern void *cdvdfsv_irx;
 extern int size_cdvdfsv_irx;
@@ -34,6 +34,18 @@ extern int size_ds34bt_irx;
 extern void *ds34usb_irx;
 extern int size_ds34usb_irx;
 
+extern void *ds3bt_irx;
+extern int size_ds3bt_irx;
+
+extern void *ds3usb_irx;
+extern int size_ds3usb_irx;
+
+extern void *ds4bt_irx;
+extern int size_ds4bt_irx;
+
+extern void *ds4usb_irx;
+extern int size_ds4usb_irx;
+
 extern void *filexio_irx;
 extern int size_filexio_irx;
 
@@ -54,6 +66,9 @@ extern int size_hdd_mcemu_irx;
 
 extern void *hdpro_atad_irx;
 extern int size_hdpro_atad_irx;
+
+extern void *hidusb_irx;
+extern int size_hidusb_irx;
 
 extern void *httpclient_irx;
 extern int size_httpclient_irx;
@@ -93,6 +108,9 @@ extern int size_netman_irx;
 
 extern void *f2techioppatch_irx;
 extern int size_f2techioppatch_irx;
+
+extern void *pademu_irx;
+extern int size_pademu_irx;
 
 extern void *padman_irx;
 extern int size_padman_irx;
@@ -181,8 +199,11 @@ extern int size_usbhdfsdfsv_irx;
 extern void *usb_mcemu_irx;
 extern int size_usb_mcemu_irx;
 
-extern void *usb_pademu_irx;
-extern int size_usb_pademu_irx;
+extern void *xbox360usb_irx;
+extern int size_xbox360usb_irx;
+
+extern void *xboxoneusb_irx;
+extern int size_xboxoneusb_irx;
 
 extern void *xhdd_irx;
 extern int size_xhdd_irx;

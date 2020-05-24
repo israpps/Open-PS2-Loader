@@ -1,45 +1,31 @@
-#ifndef _DS34USB_H_
-#define _DS34USB_H_
+#ifndef _DS3USB_H_
+#define _DS3USB_H_
 
 #include "irx.h"
+#include "../pademu.h"
 
-#define DS34_VID     0x054C // Sony Corporation
+#define SONY_VID     0x054C // Sony Corporation
 #define DS3_PID      0x0268 // PS3 Controller
-#define DS4_PID      0x05C4 // PS4 Controller
-#define DS4_PID_SLIM 0x09CC // PS4 Slim Controller
-
-#define DS3 0
-#define DS4 1
 
 #define MAX_BUFFER_SIZE 64 // Size of general purpose data buffer
 
-typedef struct _usb_ds34
+typedef struct
 {
-    int devId;
+    pad_device_t dev;
+    int usb_id;
     int sema;
     int cmd_sema;
     int controlEndp;
     int interruptEndp;
-    int outEndp;
-    u8 enabled;
-    u8 status;
-    u8 type; //0 - ds3, 1 - ds4
-    u8 oldled[4];  //rgb for ds4 and blink
+    int usb_resultcode;
+    u8 oldled[2];
     u8 lrum;
     u8 rrum;
     u8 update_rum;
     u8 data[18];
     u8 analog_btn;
     u8 btn_delay;
-} ds34usb_device;
-
-enum eDS34USBStatus {
-    DS34USB_STATE_DISCONNECTED = 0x00,
-    DS34USB_STATE_AUTHORIZED = 0x01,
-    DS34USB_STATE_CONFIGURED = 0x02,
-    DS34USB_STATE_CONNECTED = 0x04,
-    DS34USB_STATE_RUNNING = 0x08,
-};
+} ds3usb_device;
 
 enum eHID {
     // {{{
@@ -67,7 +53,9 @@ enum eHID {
     // }}}
 };
 
-struct ds3report {
+typedef struct {
+    u8 ReportID;
+    u8 Zero;
     union {
         u8 ButtonStateL; // Main buttons Low
         struct {
@@ -123,66 +111,6 @@ struct ds3report {
     s16 AccelZ;
     s16 GyroZ;
 
-} __attribute__((packed));
-
-struct ds4report {
-    u8 ReportID;
-    u8 LeftStickX;       // left Joystick X axis 0 - 255, 128 is mid
-    u8 LeftStickY;       // left Joystick Y axis 0 - 255, 128 is mid
-    u8 RightStickX;      // right Joystick X axis 0 - 255, 128 is mid
-    u8 RightStickY;      // right Joystick Y axis 0 - 255, 128 is mid
-    u8 Dpad : 4;         // hat format, 0x08 is released, 0=N, 1=NE, 2=E, 3=SE, 4=S, 5=SW, 6=W, 7=NW
-    u8 Square : 1;
-    u8 Cross : 1;
-    u8 Circle : 1;
-    u8 Triangle : 1;
-    u8 L1 : 1;
-    u8 R1 : 1;
-    u8 L2 : 1;
-    u8 R2 : 1;
-    u8 Share : 1;
-    u8 Option : 1;
-    u8 L3 : 1;
-    u8 R3 : 1;
-    u8 PSButton : 1;
-    u8 TPad : 1;
-    u8 Counter1 : 6;     // counts up by 1 per report
-    u8 PressureL2;       // digital Pad L2 button Pressure 0 - 255
-    u8 PressureR2;       // digital Pad R2 button Pressure 0 - 255
-    u8 Counter2;
-    u8 Counter3;
-    u8 Battery;             // battery level from 0x00 to 0xff 
-    s16 AccelX;
-    s16 AccelY;
-    s16 AccelZ;
-    s16 GyroZ;
-    s16 GyroY;
-    s16 GyroX;
-    u8 Reserved1[5];        // Unknown
-    u8 Power : 4;           // from 0x0 to 0xA - charging, 0xB - charged 
-    u8 Usb_plugged : 1;
-    u8 Headphones : 1;
-    u8 Microphone : 1;
-    u8 Padding : 1;
-    u8 Reserved2[2];          // Unknown
-    u8 TPpack;                // number of trackpad packets (0x00 to 0x04) 
-    u8 PackCounter;           // packet counter
-    u8 Finger1ID : 7;         // counter
-    u8 Finger1Active : 1;     // 0 - active, 1 - unactive
-    u16 Finger1X : 12;        // finger 1 coordinates resolution 1920x943
-    u16 Finger1Y : 12;
-    u8 Finger2ID : 7;
-    u8 Finger2Active : 1;
-    u16 Finger2X : 12;        // finger 2 coordinates resolution 1920x943
-    u16 Finger2Y : 12;
-
-} __attribute__((packed));
-
-int ds34usb_init(u8 pads, u8 options);
-int ds34usb_get_status(int port);
-void ds34usb_reset();
-int ds34usb_get_data(u8 *dst, int size, int port);
-void ds34usb_set_rumble(u8 lrum, u8 rrum, int port);
-void ds34usb_set_mode(int mode, int lock, int port);
+} __attribute__((packed)) ds3report_t;
 
 #endif

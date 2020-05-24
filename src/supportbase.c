@@ -605,14 +605,16 @@ int sbPrepare(base_game_info_t *game, config_set_t *configSet, int size_cdvdman,
     gPadEmuSource = 0;
     gEnablePadEmu = 0;
     gPadEmuSettings = 0;
+    gPadEmuModules = 0;
 
     if (configGetInt(configSet, CONFIG_ITEM_PADEMUSOURCE, &gPadEmuSource)) {
         configGetInt(configSet, CONFIG_ITEM_ENABLEPADEMU, &gEnablePadEmu);
         configGetInt(configSet, CONFIG_ITEM_PADEMUSETTINGS, &gPadEmuSettings);
-    }
-    else {
+        configGetInt(configSet, CONFIG_ITEM_PADEMUMODULES, &gPadEmuModules);
+    } else {
         configGetInt(configGame, CONFIG_ITEM_ENABLEPADEMU, &gEnablePadEmu);
         configGetInt(configGame, CONFIG_ITEM_PADEMUSETTINGS, &gPadEmuSettings);
+        configGetInt(configGame, CONFIG_ITEM_PADEMUMODULES, &gPadEmuModules);
     }
 #endif
 

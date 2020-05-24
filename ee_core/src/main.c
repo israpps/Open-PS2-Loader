@@ -73,6 +73,7 @@ static int eecoreInit(int argc, char **argv)
     DPRINTF("PADEMU = %s\n", EnablePadEmuOp == 0 ? "Disabled" : "Enabled");
 
     PadEmuSettings = _strtoi(_strtok(NULL, " "));
+    PadEmuModules = _strtoi(_strtok(NULL, " "));
 #endif
 
     i++;
