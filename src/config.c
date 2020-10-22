@@ -163,25 +163,22 @@ static char cfgDevice[8];
 
 char *configGetDir(void)
 {
+    if (!strncmp(cfgDevice, "mc", 2)) {
+        cfgDevice[2] = getmcID();
+    }
+
     char *path = cfgDevice;
     return path;
 }
 
 void configPrepareNotifications(char *prefix)
 {
-    int mcID;
     char *colpos;
 
     snprintf(cfgDevice, sizeof(cfgDevice), prefix);
-    if (!strncmp(cfgDevice, "mc?", 3)) {
-        mcID = getmcID();
-        cfgDevice[2] = mcID;
-    }
 
     if ((colpos = strchr(cfgDevice, ':')) != NULL)
         *(colpos + 1) = '\0';
-
-    showCfgPopup = 1;
 }
 
 void configInit(char *prefix)
@@ -646,4 +643,3 @@ void configRemoveVMC(config_set_t *configSet, int slot)
     snprintf(gkey, sizeof(gkey), "%s_%d", CONFIG_ITEM_VMC, slot);
     configRemoveKey(configSet, gkey);
 }
-

@@ -50,7 +50,7 @@
 #endif
 
 //Master password for disabling the parental lock.
-#define OPL_PARENTAL_LOCK_MASTER_PASS	"989765"
+#define OPL_PARENTAL_LOCK_MASTER_PASS "989765"
 
 //IO type IDs
 #define IO_CUSTOM_SIMPLEACTION 1 // handler for parameter-less actions
@@ -71,6 +71,8 @@ int oplPath2Mode(const char *path);
 int oplGetAppImage(const char *device, char *folder, int isRelative, char *value, char *suffix, GSTEXTURE *resultTex, short psm);
 int oplScanApps(int (*callback)(const char *path, config_set_t *appConfig, void *arg), void *arg);
 int oplShouldAppsUpdate(void);
+config_set_t *oplGetLegacyAppsConfig(void);
+config_set_t *oplGetLegacyAppsInfo(char *name);
 
 void setErrorMessage(int strId);
 void setErrorMessageWithCode(int strId, int error);
@@ -141,9 +143,6 @@ int gCheatSource;
 int gGSMSource;
 int gPadEmuSource;
 
-int gFadeDelay;
-int toggleSfx;
-
 int showCfgPopup;
 
 #ifdef IGS
@@ -185,7 +184,7 @@ int gRememberLastPlayed;
 int KeyPressedOnce;
 int gAutoStartLastPlayed;
 int RemainSecs, DisableCron;
-double CronStart;
+clock_t CronStart;
 
 unsigned char gDefaultBgColor[3];
 unsigned char gDefaultTextColor[3];

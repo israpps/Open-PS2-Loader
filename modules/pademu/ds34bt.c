@@ -12,8 +12,7 @@
 #include "thbase.h"
 #include "thsemap.h"
 #include "ds34bt.h"
-
-IRX_ID("ds34bt", 1, 1);
+#include "sys_utils.h"
 
 //#define DPRINTF(x...) printf(x)
 #define DPRINTF(x...)
@@ -109,10 +108,6 @@ static int bt_connect(int devId)
     device = (UsbDeviceDescriptor *)UsbGetDeviceStaticDescriptor(devId, NULL, USB_DT_DEVICE);
     config = (UsbConfigDescriptor *)UsbGetDeviceStaticDescriptor(devId, device, USB_DT_CONFIG);
     interface = (UsbInterfaceDescriptor *)((char *)config + config->bLength);
-
-    bt_dev.vid = device->idVendor;
-    bt_dev.pid = device->idProduct;
-    bt_dev.rev = device->bcdDevice;
 
     epCount = interface->bNumEndpoints - 1;
 
@@ -343,27 +338,22 @@ static u8 GenuineMacAddress[][3] =
 #define REQ_HCI_OUT (USB_DIR_OUT | USB_TYPE_CLASS | USB_RECIP_DEVICE)
 #define HCI_COMMAND_REQ 0
 
-#define MAX_PADS 2
-
-static u8 bt_bdaddr[6];              //usb bt adapter mac address
-static hci_information_t bt_version; //bt adapter version information
-static u8 bt_features[8];            //bt adapter supported features
+#define MAX_PADS 4
+#define MAX_DELAY 10
 
 static u8 hci_buf[MAX_BUFFER_SIZE] __attribute((aligned(4))) = {0};
 static u8 l2cap_buf[MAX_BUFFER_SIZE + 32] __attribute((aligned(4))) = {0};
 static u8 hci_cmd_buf[MAX_BUFFER_SIZE] __attribute((aligned(4))) = {0};
 static u8 l2cap_cmd_buf[MAX_BUFFER_SIZE + 32] __attribute((aligned(4))) = {0};
 
-static u8 identifier;
-static u8 press_emu;
+static u8 identifier = 0;
+static u8 press_emu = 0;
 static u8 disable_fake = 0;
 
 static ds34bt_pad_t ds34pad[MAX_PADS];
 
 static void hci_event_cb(int resultCode, int bytes, void *arg);
 static void l2cap_event_cb(int resultCode, int bytes, void *arg);
-
-static void ds34pad_init();
 
 static int hid_initDS34(int pad);
 static int hid_LEDRumble(u8 *led, u8 lrum, u8 rrum, int pad);
@@ -489,33 +479,6 @@ static int hci_change_connection_type(u16 handle)
     return HCI_Command(7, hci_cmd_buf);
 }
 
-static int hci_read_bdaddr()
-{
-    hci_cmd_buf[0] = HCI_OCF_READ_BDADDR; // HCI OCF = 9
-    hci_cmd_buf[1] = HCI_OGF_INFO_PARAM;  // HCI OGF = 4
-    hci_cmd_buf[2] = 0x00;
-
-    return HCI_Command(3, hci_cmd_buf);
-}
-
-static int hci_read_local_version_information()
-{
-    hci_cmd_buf[0] = HCI_OCF_READ_VERSION; // HCI OCF = 9
-    hci_cmd_buf[1] = HCI_OGF_INFO_PARAM;   // HCI OGF = 4
-    hci_cmd_buf[2] = 0x00;
-
-    return HCI_Command(3, hci_cmd_buf);
-}
-
-static int hci_read_local_supported_features()
-{
-    hci_cmd_buf[0] = HCI_OCF_READ_FEATURES; // HCI OCF = 9
-    hci_cmd_buf[1] = HCI_OGF_INFO_PARAM;    // HCI OGF = 4
-    hci_cmd_buf[2] = 0x00;
-
-    return HCI_Command(3, hci_cmd_buf);
-}
-
 static int hci_link_key_request_reply(u8 *bdaddr)
 {
     hci_cmd_buf[0] = HCI_OCF_LINK_KEY_REQUEST_REPLY; // HCI OCF = 0E
@@ -548,30 +511,6 @@ static void HCI_event_task(int result)
                 DPRINTF("\tReturned = 0x%02X \n", hci_buf[5]);
                 if ((hci_buf[3] == HCI_OCF_RESET) && (hci_buf[4] == HCI_OGF_CTRL_BBAND)) {
                     if (hci_buf[5] == 0) {
-                        hci_read_bdaddr();
-                    } else {
-                        DelayThread(500);
-                        hci_reset();
-                    }
-                } else if ((hci_buf[3] == HCI_OCF_READ_BDADDR) && (hci_buf[4] == HCI_OGF_INFO_PARAM)) {
-                    if (hci_buf[5] == 0) {
-                        mips_memcpy(bt_bdaddr, &hci_buf[6], 6);
-                        hci_read_local_version_information();
-                    } else {
-                        DelayThread(500);
-                        hci_reset();
-                    }
-                } else if ((hci_buf[3] == HCI_OCF_READ_VERSION) && (hci_buf[4] == HCI_OGF_INFO_PARAM)) {
-                    if (hci_buf[5] == 0) {
-                        mips_memcpy(&bt_version, &hci_buf[6], sizeof(hci_information_t));
-                        hci_read_local_supported_features();
-                    } else {
-                        DelayThread(500);
-                        hci_reset();
-                    }
-                } else if ((hci_buf[3] == HCI_OCF_READ_FEATURES) && (hci_buf[4] == HCI_OGF_INFO_PARAM)) {
-                    if (hci_buf[5] == 0) {
-                        mips_memcpy(bt_features, &hci_buf[6], sizeof(bt_features));
                         hci_write_scan_enable(SCAN_ENABLE_NOINQ_ENPAG);
                     } else {
                         DelayThread(500);
@@ -588,8 +527,7 @@ static void HCI_event_task(int result)
                 break;
 
             case HCI_EVENT_COMMAND_STATUS:
-                if (hci_buf[2]) // show status on serial if not OK
-                {
+                if (hci_buf[2]) { // show status on serial if not OK
                     DPRINTF("HCI Command Failed: \n");
                     DPRINTF("\t Status = 0x%02X \n", hci_buf[2]);
                     DPRINTF("\t Command_OpCode(OGF) = 0x%02X \n", ((hci_buf[5] & 0xFC) >> 2));
@@ -599,8 +537,7 @@ static void HCI_event_task(int result)
 
             case HCI_EVENT_CONNECT_COMPLETE:
                 DPRINTF("HCI event Connect Complete: \n");
-                if (!hci_buf[2]) // check if connected OK
-                {
+                if (!hci_buf[2]) { // check if connected OK
                     DPRINTF("\t Connection_Handle 0x%02X \n", hci_buf[3] | ((hci_buf[4] & 0x0F) << 8));
                     DPRINTF("\t Requested by BD_ADDR: \n\t");
                     for (i = 0; i < 6; i++) {
@@ -705,8 +642,7 @@ static void HCI_event_task(int result)
                 }
                 DPRINTF("\n\t Link = 0x%02X \n", hci_buf[11]);
                 DPRINTF("\t Class = 0x%02X 0x%02X 0x%02X \n", hci_buf[8], hci_buf[9], hci_buf[10]);
-                for (i = 0; i < MAX_PADS; i++) //find free slot
-                {
+                for (i = 0; i < MAX_PADS; i++) { //find free slot
                     if (!pad_status_check(DS34BT_STATE_RUNNING, i) && ds34pad[i].enabled) {
                         if (pad_status_check(DS34BT_STATE_CONNECTED, i)) {
                             if (pad_status_check(DS34BT_STATE_DISCONNECTING, i)) //if we're waiting for hci disconnect event
@@ -717,8 +653,7 @@ static void HCI_event_task(int result)
                         break;
                     }
                 }
-                if (i >= MAX_PADS) //no free slot
-                {
+                if (i >= MAX_PADS) { //no free slot
                     hci_reject_connection(hci_buf + 2);
                     break;
                 }
@@ -726,9 +661,8 @@ static void HCI_event_task(int result)
                 mips_memcpy(ds34pad[pad].bdaddr, hci_buf + 2, 6);
                 ds34pad[pad].isfake = 0;
                 if (!disable_fake) {
-                    ds34pad[pad].isfake = 1;                            //fake ds3
-                    for (i = 0; i < sizeof(GenuineMacAddress) / 3; i++) //check if ds3 is genuine
-                    {
+                    ds34pad[pad].isfake = 1;                              //fake ds3
+                    for (i = 0; i < sizeof(GenuineMacAddress) / 3; i++) { //check if ds3 is genuine
                         if (ds34pad[pad].bdaddr[5] == GenuineMacAddress[i][0] &&
                             ds34pad[pad].bdaddr[4] == GenuineMacAddress[i][1] &&
                             ds34pad[pad].bdaddr[3] == GenuineMacAddress[i][2]) {
@@ -801,8 +735,10 @@ static void ds34pad_clear(int pad)
     ds34pad[pad].interrupt_scid = 0;
     mips_memset(ds34pad[pad].bdaddr, 0, 6);
     ds34pad[pad].status = bt_dev.status;
+    ds34pad[pad].status |= DS34BT_STATE_USB_CONFIGURED;
     ds34pad[pad].isfake = 0;
     ds34pad[pad].type = 0;
+    ds34pad[pad].btn_delay = 0;
     ds34pad[pad].data[0] = 0xFF;
     ds34pad[pad].data[1] = 0xFF;
     mips_memset(&ds34pad[pad].data[2], 0x7F, 4);
@@ -1066,8 +1002,10 @@ static int L2CAP_event_task(int result, int bytes)
                         DPRINTF("\t RESULT = 0x%04X \n", (l2cap_buf[16] | (l2cap_buf[17] << 8)));
 
                         if ((l2cap_buf[12] | (l2cap_buf[13] << 8)) == control_dcid) {
-                            identifier++;
-                            l2cap_connection_request(ds34pad[pad].hci_handle, identifier, interrupt_dcid, L2CAP_PSM_INTR);
+                            if (ds34pad[pad].type == DS4) {
+                                identifier++;
+                                l2cap_connection_request(ds34pad[pad].hci_handle, identifier, interrupt_dcid, L2CAP_PSM_INTR);
+                            }
                         } else if ((l2cap_buf[12] | (l2cap_buf[13] << 8)) == interrupt_dcid) {
                             hid_initDS34(pad);
                             if (ds34pad[pad].type == DS3) {
@@ -1083,6 +1021,7 @@ static int L2CAP_event_task(int result, int bytes)
                             hid_LEDRumble(ds34pad[pad].oldled, 0, 0, pad);
                             pad_status_set(DS34BT_STATE_RUNNING, pad);
                         }
+                        ds34pad[pad].btn_delay = 0xFF;
                         break;
 
                     case L2CAP_CMD_DISCONNECT_REQUEST:
@@ -1230,8 +1169,7 @@ static int hid_LEDRumble(u8 *led, u8 lrum, u8 rrum, int pad)
 
         led_buf[11] = led[0] & 0x7F; //LED Conf
 
-        if (led[3]) //means charging, so blink
-        {
+        if (led[3]) { //means charging, so blink
             led_buf[15] = 0x32;
             led_buf[20] = 0x32;
             led_buf[25] = 0x32;
@@ -1247,15 +1185,14 @@ static int hid_LEDRumble(u8 *led, u8 lrum, u8 rrum, int pad)
         led_buf[2] = 0x80;                       //update rate 1000Hz
         led_buf[4] = 0xFF;
 
-        led_buf[7] = rrum;
+        led_buf[7] = rrum * 255;
         led_buf[8] = lrum;
 
         led_buf[9] = led[0];  //r
         led_buf[10] = led[1]; //g
         led_buf[11] = led[2]; //b
 
-        if (led[3]) //means charging, so blink
-        {
+        if (led[3]) {           //means charging, so blink
             led_buf[12] = 0x80; // Time to flash bright (255 = 2.5 seconds)
             led_buf[13] = 0x80; // Time to flash dark (255 = 2.5 seconds)
         }
@@ -1267,8 +1204,6 @@ static int hid_LEDRumble(u8 *led, u8 lrum, u8 rrum, int pad)
     ds34pad[pad].oldled[1] = led[1];
     ds34pad[pad].oldled[2] = led[2];
     ds34pad[pad].oldled[3] = led[3];
-    ds34pad[pad].lrum = lrum;
-    ds34pad[pad].rrum = rrum;
 
     return HID_command(ds34pad[pad].hci_handle, ds34pad[pad].control_scid, led_buf, size, pad);
 }
@@ -1329,10 +1264,26 @@ static void hid_readReport(u8 *data, int bytes, int pad)
                 ds34pad[pad].data[17] = report->PressureR2; //R2
             }
 
-            if (report->PSButtonState && report->Power != 0xEE) //display battery level
-                ds34pad[pad].oldled[0] = power_level[report->Power];
-            else
-                ds34pad[pad].oldled[0] = led_patterns[pad][1];
+            if (report->PSButtonState) {                                       //display battery level
+                if (report->Select && (ds34pad[pad].btn_delay == MAX_DELAY)) { //PS + SELECT
+                    if (ds34pad[pad].analog_btn < 2)                           //unlocked mode
+                        ds34pad[pad].analog_btn = !ds34pad[pad].analog_btn;
+
+                    ds34pad[pad].oldled[0] = led_patterns[pad][(ds34pad[pad].analog_btn & 1)];
+                    ds34pad[pad].btn_delay = 1;
+                } else {
+                    if (report->Power != 0xEE)
+                        ds34pad[pad].oldled[0] = power_level[report->Power];
+
+                    if (ds34pad[pad].btn_delay < MAX_DELAY)
+                        ds34pad[pad].btn_delay++;
+                }
+            } else {
+                ds34pad[pad].oldled[0] = led_patterns[pad][(ds34pad[pad].analog_btn & 1)];
+
+                if (ds34pad[pad].btn_delay > 0)
+                    ds34pad[pad].btn_delay--;
+            }
 
             if (report->Power == 0xEE) //charging
                 ds34pad[pad].oldled[3] = 1;
@@ -1421,20 +1372,39 @@ static void hid_readReport(u8 *data, int bytes, int pad)
             ds34pad[pad].data[16] = report->PressureL2; //L2
             ds34pad[pad].data[17] = report->PressureR2; //R2
 
-            if (report->PSButton) { //display battery level
-                ds34pad[pad].oldled[0] = report->Battery;
-                ds34pad[pad].oldled[1] = 0;
-                ds34pad[pad].oldled[2] = 0;
+            if (report->PSButton) {                                           //display battery level
+                if (report->Share && (ds34pad[pad].btn_delay == MAX_DELAY)) { //PS + Share
+                    if (ds34pad[pad].analog_btn < 2)                          //unlocked mode
+                        ds34pad[pad].analog_btn = !ds34pad[pad].analog_btn;
+
+                    ds34pad[pad].oldled[0] = rgbled_patterns[pad][(ds34pad[pad].analog_btn & 1)][0];
+                    ds34pad[pad].oldled[1] = rgbled_patterns[pad][(ds34pad[pad].analog_btn & 1)][1];
+                    ds34pad[pad].oldled[2] = rgbled_patterns[pad][(ds34pad[pad].analog_btn & 1)][2];
+                    ds34pad[pad].btn_delay = 1;
+                } else {
+                    ds34pad[pad].oldled[0] = report->Battery;
+                    ds34pad[pad].oldled[1] = 0;
+                    ds34pad[pad].oldled[2] = 0;
+
+                    if (ds34pad[pad].btn_delay < MAX_DELAY)
+                        ds34pad[pad].btn_delay++;
+                }
             } else {
-                ds34pad[pad].oldled[0] = rgbled_patterns[pad][1][0];
-                ds34pad[pad].oldled[1] = rgbled_patterns[pad][1][1];
-                ds34pad[pad].oldled[2] = rgbled_patterns[pad][1][2];
+                ds34pad[pad].oldled[0] = rgbled_patterns[pad][(ds34pad[pad].analog_btn & 1)][0];
+                ds34pad[pad].oldled[1] = rgbled_patterns[pad][(ds34pad[pad].analog_btn & 1)][1];
+                ds34pad[pad].oldled[2] = rgbled_patterns[pad][(ds34pad[pad].analog_btn & 1)][2];
+
+                if (ds34pad[pad].btn_delay > 0)
+                    ds34pad[pad].btn_delay--;
             }
 
             if (report->Power != 0xB && report->Usb_plugged) //charging
                 ds34pad[pad].oldled[3] = 1;
             else
                 ds34pad[pad].oldled[3] = 0;
+        }
+        if (ds34pad[pad].btn_delay > 0) {
+            ds34pad[pad].update_rum = 1;
         }
     } else {
         DPRINTF("Unmanaged Input Report: THDR 0x%02X ", data[8]);
@@ -1443,17 +1413,11 @@ static void hid_readReport(u8 *data, int bytes, int pad)
 }
 
 /************************************************************/
-/* DS34BT Commands                                            */
+/* DS34BT Commands                                          */
 /************************************************************/
 
 void ds34bt_set_rumble(u8 lrum, u8 rrum, int port)
 {
-    if (port >= MAX_PADS)
-        return;
-
-    if (!(bt_dev.status & DS34BT_STATE_USB_AUTHORIZED))
-        return;
-
     WaitSema(bt_dev.hid_sema);
 
     ds34pad[port].update_rum = 1;
@@ -1463,257 +1427,95 @@ void ds34bt_set_rumble(u8 lrum, u8 rrum, int port)
     SignalSema(bt_dev.hid_sema);
 }
 
-void ds34bt_set_led(u8 *led, int port)
+int ds34bt_get_data(u8 *dst, int size, int port)
 {
-    if (port >= MAX_PADS)
-        return;
-
-    if (!(bt_dev.status & DS34BT_STATE_USB_AUTHORIZED))
-        return;
-
-    WaitSema(bt_dev.hid_sema);
-
-    ds34pad[port].update_rum = 1;
-    ds34pad[port].oldled[0] = led[0];
-    ds34pad[port].oldled[1] = led[1];
-    ds34pad[port].oldled[2] = led[2];
-    ds34pad[port].oldled[3] = led[3];
-
-    SignalSema(bt_dev.hid_sema);
-}
-
-int ds34bt_get_bdaddr(u8 *data)
-{
-    if (!(bt_dev.status & DS34BT_STATE_USB_CONFIGURED))
-        return 0;
-
-    mips_memcpy(data, bt_bdaddr, 6);
-
-    return 1;
-}
-
-int ds34bt_get_ver(u8 *data)
-{
-    if (!(bt_dev.status & DS34BT_STATE_USB_CONFIGURED))
-        return 0;
-
-    bt_version.vid = bt_dev.vid;
-    bt_version.pid = bt_dev.pid;
-    bt_version.rev = bt_dev.rev;
-
-    mips_memcpy(data, &bt_version, sizeof(hci_information_t));
-
-    return 1;
-}
-
-int ds34bt_get_feat(u8 *data)
-{
-    if (!(bt_dev.status & DS34BT_STATE_USB_CONFIGURED))
-        return 0;
-
-    mips_memcpy(data, bt_features, sizeof(bt_features));
-
-    return 1;
-}
-
-void ds34bt_get_data(char *dst, int size, int port)
-{
-    if (port >= MAX_PADS)
-        return;
-
-    if (!(bt_dev.status & DS34BT_STATE_USB_AUTHORIZED))
-        return;
+    int ret;
 
     WaitSema(bt_dev.hid_sema);
 
     mips_memcpy(dst, ds34pad[port].data, size);
+    ret = ds34pad[port].analog_btn & 1;
 
     SignalSema(bt_dev.hid_sema);
+
+    return ret;
+}
+
+void ds34bt_set_mode(int mode, int lock, int port)
+{
+    WaitSema(bt_dev.hid_sema);
+
+    if (lock == 3)
+        ds34pad[port].analog_btn = 3;
+    else
+        ds34pad[port].analog_btn = mode;
+
+    SignalSema(bt_dev.hid_sema);
+}
+
+int ds34bt_get_status(int port)
+{
+    int ret;
+
+    WaitSema(bt_dev.hid_sema);
+
+    ret = ds34pad[port].status;
+
+    SignalSema(bt_dev.hid_sema);
+
+    return ret;
+}
+
+int ds34bt_init(u8 pads, u8 options)
+{
+    int ret, i;
+
+    for (i = 0; i < MAX_PADS; i++)
+        ds34pad[i].enabled = (pads >> i) & 1;
+
+    ds34pad_init();
+
+    disable_fake = options & 1;
+
+    bt_dev.hid_sema = CreateMutex(IOP_MUTEX_UNLOCKED);
+
+    if (bt_dev.hid_sema < 0) {
+        DPRINTF("DS34BT: Failed to allocate semaphore.\n");
+        return 0;
+    }
+
+    ret = UsbRegisterDriver(&bt_driver);
+
+    if (ret != USB_RC_OK) {
+        DPRINTF("DS34BT: Error registering USB devices: %02X\n", ret);
+        return 0;
+    }
+
+    UsbRegisterDriver(&chrg_driver);
+
+    return 1;
 }
 
 void ds34bt_reset()
 {
     int pad;
 
-    if (!(bt_dev.status & DS34BT_STATE_USB_AUTHORIZED))
-        return;
-
-    for (pad = 0; pad < MAX_PADS; pad++) {
-        WaitSema(bt_dev.hid_sema);
-        pad_status_set(DS34BT_STATE_DISCONNECT_REQUEST, pad);
-        SignalSema(bt_dev.hid_sema);
-        while (1) {
-            DelayThread(500);
+    if (bt_dev.status & DS34BT_STATE_USB_AUTHORIZED) {
+        for (pad = 0; pad < MAX_PADS; pad++) {
             WaitSema(bt_dev.hid_sema);
-            if (!pad_status_check(DS34BT_STATE_RUNNING, pad)) {
-                SignalSema(bt_dev.hid_sema);
-                break;
-            }
+            pad_status_set(DS34BT_STATE_DISCONNECT_REQUEST, pad);
             SignalSema(bt_dev.hid_sema);
+            while (1) {
+                DelayThread(500);
+                WaitSema(bt_dev.hid_sema);
+                if (!pad_status_check(DS34BT_STATE_RUNNING, pad)) {
+                    SignalSema(bt_dev.hid_sema);
+                    break;
+                }
+                SignalSema(bt_dev.hid_sema);
+            }
         }
+        DelayThread(1000000);
+        bt_disconnect(bt_dev.devId);
     }
-
-    DelayThread(1000000);
-}
-
-int ds34bt_get_status(int port)
-{
-    int status = bt_dev.status;
-
-    if ((status & DS34BT_STATE_USB_AUTHORIZED) && (port < MAX_PADS)) {
-        WaitSema(bt_dev.hid_sema);
-        status |= ds34pad[port].status;
-        SignalSema(bt_dev.hid_sema);
-    }
-
-    return status;
-}
-
-int ds34bt_init(u8 pads)
-{
-    int i;
-
-    WaitSema(bt_dev.hid_sema);
-
-    for (i = 0; i < MAX_PADS; i++)
-        ds34pad[i].enabled = (pads >> i) & 1;
-
-    ds34pad_init();
-    hci_reset();
-
-    SignalSema(bt_dev.hid_sema);
-
-    return 1;
-}
-
-static u8 chrg_inited = 0;
-
-void ds34bt_init_charging()
-{
-    int ret;
-
-    if (!chrg_inited) {
-        ret = UsbRegisterDriver(&chrg_driver);
-        if (ret != USB_RC_OK) {
-            DPRINTF("DS34BT: Error registering charging 0x%02X \n", ret);
-            chrg_inited = 0;
-        } else {
-            chrg_inited = 1;
-        }
-    }
-}
-
-static void rpc_thread(void *data);
-static void *rpc_sf(int cmd, void *data, int size);
-
-static SifRpcDataQueue_t rpc_que __attribute__((aligned(16)));
-static SifRpcServerData_t rpc_svr __attribute__((aligned(16)));
-
-static int rpc_buf[64] __attribute((aligned(16)));
-
-#define DS34BT_INIT 1
-#define DS34BT_INIT_CHARGING 2
-#define DS34BT_GET_STATUS 3
-#define DS34BT_GET_BDADDR 4
-#define DS34BT_SET_RUMBLE 5
-#define DS34BT_SET_LED 6
-#define DS34BT_GET_DATA 7
-#define DS34BT_RESET 8
-#define DS34BT_GET_VERSION 9
-#define DS34BT_GET_FEATURES 10
-
-#define DS34BT_BIND_RPC_ID 0x18E3878F
-
-void rpc_thread(void *data)
-{
-    SifInitRpc(0);
-    SifSetRpcQueue(&rpc_que, GetThreadId());
-    SifRegisterRpc(&rpc_svr, DS34BT_BIND_RPC_ID, rpc_sf, rpc_buf, NULL, NULL, &rpc_que);
-    SifRpcLoop(&rpc_que);
-}
-
-void *rpc_sf(int cmd, void *data, int size)
-{
-    switch (cmd) {
-        case DS34BT_INIT:
-            ds34bt_init(*(u8 *)data);
-            break;
-        case DS34BT_INIT_CHARGING:
-            ds34bt_init_charging();
-            break;
-        case DS34BT_GET_STATUS:
-            *(u8 *)data = ds34bt_get_status(*(u8 *)data);
-            break;
-        case DS34BT_GET_BDADDR:
-            *(u8 *)(data + 6) = ds34bt_get_bdaddr((u8 *)data);
-            break;
-        case DS34BT_SET_RUMBLE:
-            ds34bt_set_rumble(*(u8 *)(data + 1), *(u8 *)(data + 2), *(u8 *)data);
-            break;
-        case DS34BT_SET_LED:
-            ds34bt_set_led((u8 *)(data + 1), *(u8 *)data);
-            break;
-        case DS34BT_GET_DATA:
-            ds34bt_get_data((u8 *)data, 18, *(u8 *)data);
-            break;
-        case DS34BT_RESET:
-            ds34bt_reset();
-            break;
-        case DS34BT_GET_VERSION:
-            *(u8 *)(data + sizeof(hci_information_t)) = ds34bt_get_ver((u8 *)data);
-            break;
-        case DS34BT_GET_FEATURES:
-            *(u8 *)(data + 8) = ds34bt_get_feat((u8 *)data);
-            break;
-        default:
-            break;
-    }
-
-    return data;
-}
-
-int _start(int argc, char *argv[])
-{
-    int ret, i;
-    u8 enable = 0xFF;
-
-    if (argc > 1) {
-        enable = argv[1][0];
-    }
-
-    for (i = 0; i < MAX_PADS; i++)
-        ds34pad[i].enabled = (enable >> i) & 1;
-
-    ds34pad_init();
-
-    bt_dev.hid_sema = CreateMutex(IOP_MUTEX_UNLOCKED);
-
-    if (bt_dev.hid_sema < 0) {
-        DPRINTF("DS34BT: Failed to allocate I/O semaphore.\n");
-        return MODULE_NO_RESIDENT_END;
-    }
-
-    ret = UsbRegisterDriver(&bt_driver);
-
-    if (ret != USB_RC_OK) {
-        DPRINTF("DS34BT: Error registering BT devices 0x%02X \n", ret);
-        return MODULE_NO_RESIDENT_END;
-    }
-
-    iop_thread_t rpc_th;
-
-    rpc_th.attr = TH_C;
-    rpc_th.thread = rpc_thread;
-    rpc_th.priority = 40;
-    rpc_th.stacksize = 0x800;
-    rpc_th.option = 0;
-
-    int thid = CreateThread(&rpc_th);
-
-    if (thid > 0) {
-        StartThread(thid, NULL);
-        return MODULE_RESIDENT_END;
-    }
-
-    return MODULE_NO_RESIDENT_END;
 }

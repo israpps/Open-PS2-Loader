@@ -14,6 +14,7 @@
 #define NEWLIB_PORT_AWARE
 #include <fileXio_rpc.h> // fileXioMount("iso:", ***), fileXioUmount("iso:")
 #include <io_common.h>   // FIO_MT_RDONLY
+#include <ps2sdkapi.h>   // lseek64
 
 /// internal linked list used to populate the list from directory listing
 struct game_list_t
@@ -22,7 +23,8 @@ struct game_list_t
     struct game_list_t *next;
 };
 
-struct game_cache_list {
+struct game_cache_list
+{
     unsigned int count;
     base_game_info_t *games;
 };
@@ -78,19 +80,16 @@ static int GetStartupExecName(const char *path, char *filename, int maxlength)
     const char *key;
     int ret;
 
-    if ((ret = ps2cnfGetBootFile(path, ps2disc_boot)) == 0)
-    {
+    if ((ret = ps2cnfGetBootFile(path, ps2disc_boot)) == 0) {
         /* Skip the device name part of the path ("cdrom0:\"). */
         key = ps2disc_boot;
 
-        for( ; *key != ':'; key++)
-        {
-            if (*key == '\0')
-            {
+        for (; *key != ':'; key++) {
+            if (*key == '\0') {
                 LOG("GetStartupExecName: missing ':' (%s).\n", ps2disc_boot);
                 return -1;
             }
-	}
+        }
 
         ++key;
         if (*key == '\\')
@@ -119,20 +118,16 @@ static int loadISOGameListCache(const char *path, struct game_cache_list *cache)
 
     sprintf(filename, "%s/games.bin", path);
     file = fopen(filename, "rb");
-    if (file != NULL)
-    {
+    if (file != NULL) {
         fseek(file, 0, SEEK_END);
         size = ftell(file);
         rewind(file);
 
         count = size / sizeof(base_game_info_t);
-        if (count > 0)
-        {
+        if (count > 0) {
             games = memalign(64, count * sizeof(base_game_info_t));
-            if (games != NULL)
-            {
-                if (fread(games, sizeof(base_game_info_t), count, file) == count)
-                {
+            if (games != NULL) {
+                if (fread(games, sizeof(base_game_info_t), count, file) == count) {
                     LOG("loadISOGameListCache: %d games loaded.\n", count);
                     cache->count = count;
                     cache->games = games;
@@ -160,8 +155,7 @@ static int loadISOGameListCache(const char *path, struct game_cache_list *cache)
 
 static void freeISOGameListCache(struct game_cache_list *cache)
 {
-    if (cache->games != NULL)
-    {
+    if (cache->games != NULL) {
         free(cache->games);
         cache->games = NULL;
         cache->count = 0;
@@ -177,23 +171,17 @@ static int updateISOGameList(const char *path, const struct game_cache_list *cac
     base_game_info_t *list;
 
     modified = 0;
-    if (cache != NULL)
-    {
-        if ((head != NULL) && (count > 0))
-        {
+    if (cache != NULL) {
+        if ((head != NULL) && (count > 0)) {
             game = head;
 
-            for (i = 0; i < count; i++)
-            {
-                for (j = 0; j < cache->count; j++)
-                {
-                    if (strncmp(cache->games[i].name, game->gameinfo.name, ISO_GAME_NAME_MAX+1) == 0
-                       && strncmp(cache->games[i].extension, game->gameinfo.extension, ISO_GAME_EXTENSION_MAX+1) == 0)
+            for (i = 0; i < count; i++) {
+                for (j = 0; j < cache->count; j++) {
+                    if (strncmp(cache->games[i].name, game->gameinfo.name, ISO_GAME_NAME_MAX + 1) == 0 && strncmp(cache->games[i].extension, game->gameinfo.extension, ISO_GAME_EXTENSION_MAX + 1) == 0)
                         break;
                 }
 
-                if (j == cache->count)
-                {
+                if (j == cache->count) {
                     LOG("updateISOGameList: game added.\n");
                     modified = 1;
                     break;
@@ -202,8 +190,7 @@ static int updateISOGameList(const char *path, const struct game_cache_list *cac
                 game = game->next;
             }
 
-            if ((!modified) && (count != cache->count))
-            {
+            if ((!modified) && (count != cache->count)) {
                 LOG("updateISOGameList: game removed.\n");
                 modified = 1;
             }
@@ -220,8 +207,7 @@ static int updateISOGameList(const char *path, const struct game_cache_list *cac
 
     result = 0;
     sprintf(filename, "%s/games.bin", path);
-    if ((head != NULL) && (count > 0))
-    {
+    if ((head != NULL) && (count > 0)) {
         list = (base_game_info_t *)memalign(64, sizeof(base_game_info_t) * count);
 
         if (list != NULL) {
@@ -233,8 +219,7 @@ static int updateISOGameList(const char *path, const struct game_cache_list *cac
             }
 
             file = fopen(filename, "wb");
-            if (file != NULL)
-            {
+            if (file != NULL) {
                 result = fwrite(list, sizeof(base_game_info_t), count, file) == count ? 0 : EIO;
 
                 fclose(file);
@@ -258,15 +243,13 @@ static int updateISOGameList(const char *path, const struct game_cache_list *cac
 //Queries for the game entry, based on filename. Only the new filename format is supported (filename.ext).
 static int queryISOGameListCache(const struct game_cache_list *cache, base_game_info_t *ginfo, const char *filename)
 {
-    char isoname[ISO_GAME_FNAME_MAX+1];
+    char isoname[ISO_GAME_FNAME_MAX + 1];
     int i;
 
-    for (i = 0; i < cache->count; i++)
-    {
+    for (i = 0; i < cache->count; i++) {
         snprintf(isoname, sizeof(isoname), "%s%s", cache->games[i].name, cache->games[i].extension);
 
-        if (strcmp(filename, isoname) == 0)
-        {
+        if (strcmp(filename, isoname) == 0) {
             memcpy(ginfo, &cache->games[i], sizeof(base_game_info_t));
             return 0;
         }
@@ -318,7 +301,7 @@ static int scanForISO(char *path, char type, struct game_list_t **glist)
                         break;
                     }
                 } else {
-                    if(queryISOGameListCache(&cache, &cachedGInfo, dirent->d_name) != 0) {
+                    if (queryISOGameListCache(&cache, &cachedGInfo, dirent->d_name) != 0) {
                         sprintf(fullpath, "%s/%s", path, dirent->d_name);
 
                         if ((MountFD = fileXioMount("iso:", fullpath, FIO_MT_RDONLY)) >= 0) {
@@ -386,8 +369,7 @@ static int scanForISO(char *path, char type, struct game_list_t **glist)
         count = 0;
     }
 
-    if (cacheLoaded)
-    {
+    if (cacheLoaded) {
         updateISOGameList(path, &cache, *glist, count);
         freeISOGameListCache(&cache);
     } else {
@@ -527,7 +509,7 @@ int sbProbeISO9660_64(const char *path, base_game_info_t *game, u32 layer1_offse
     result = -1;
     if (game->media == SCECdPS2DVD) { //Only DVDs can have multiple layers.
         if ((fd = open(path, O_RDONLY, 0666)) >= 0) {
-            if (lseek(fd, (u64)layer1_offset * 2048, SEEK_SET) == (u64)layer1_offset * 2048) {
+            if (lseek64(fd, (u64)layer1_offset * 2048, SEEK_SET) == (u64)layer1_offset * 2048) {
                 if ((read(fd, buffer, sizeof(buffer)) == sizeof(buffer)) &&
                     ((buffer[0x00] == 1) && (!strncmp(&buffer[0x01], "CD001", 5)))) {
                     result = 0;
@@ -740,7 +722,7 @@ void sbRename(base_game_info_t **list, const char *prefix, const char *sep, int 
 config_set_t *sbPopulateConfig(base_game_info_t *game, const char *prefix, const char *sep)
 {
     char path[256];
-    snprintf(path, sizeof(path), "%s"OPL_FOLDER"%s%s.cfg", prefix, sep, game->startup);
+    snprintf(path, sizeof(path), "%s" OPL_FOLDER "%s%s.cfg", prefix, sep, game->startup);
     config_set_t *config = configAlloc(0, NULL, path);
     configRead(config); //Does not matter if the config file could be loaded or not.
 
@@ -769,8 +751,8 @@ static void sbCreateFoldersFromList(const char *path, const char **folders)
 
 void sbCreateFolders(const char *path, int createDiscImgFolders)
 {
-    const char *basicFolders[] = { OPL_FOLDER, "THM", "LNG", "ART", "VMC", "CHT", "APPS", NULL };
-    const char *discImgFolders[] = { "CD", "DVD", NULL };
+    const char *basicFolders[] = {OPL_FOLDER, "THM", "LNG", "ART", "VMC", "CHT", "APPS", NULL};
+    const char *discImgFolders[] = {"CD", "DVD", NULL};
 
     sbCreateFoldersFromList(path, basicFolders);
 
@@ -806,4 +788,3 @@ int sbLoadCheats(const char *path, const char *file)
 
     return result;
 }
-

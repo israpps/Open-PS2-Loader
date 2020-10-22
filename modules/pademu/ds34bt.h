@@ -29,9 +29,6 @@ typedef struct
     int inEndp;
     int outEndp;
     u8 status;
-    u16 vid;
-    u16 pid;
-    u16 rev;
 } bt_device;
 
 typedef struct
@@ -39,7 +36,6 @@ typedef struct
     u16 hci_handle;     //hci connection handle
     u16 control_scid;   // Channel endpoint on command destination
     u16 interrupt_scid; // Channel endpoint on interrupt destination
-    u8 hci_state;       // current state of bluetooth HCI connection
     u8 bdaddr[6];
     u8 enabled;
     u8 status;
@@ -50,19 +46,9 @@ typedef struct
     u8 rrum;
     u8 update_rum;
     u8 data[18];
+    u8 analog_btn;
+    u8 btn_delay;
 } ds34bt_pad_t;
-
-typedef struct
-{
-    u8 hci_ver;     //Version of the Current HCI in the BR/EDR Controller
-    u16 hci_rev;    //Revision of the Current HCI in the BR/EDR Controller
-    u8 lmp_ver;     //Version of the Current LMP or PAL in the Controller
-    u16 mf_name;    //Manufacturer Name of the BR/EDR Controller
-    u16 lmp_subver; //Subversion of the Current LMP or PAL in the Controller
-    u16 vid;
-    u16 pid;
-    u16 rev;
-} __attribute__((packed)) hci_information_t;
 
 enum eDS34BTStatus {
     DS34BT_STATE_USB_DISCONNECTED = 0x00,
@@ -88,8 +74,6 @@ enum eHCI {
     HCI_INIT_STATE = 0,
     HCI_RESET_STATE,
     HCI_READBDADDR_STATE,
-    HCI_READVERSION_STATE,
-    HCI_READFEATURES_STATE,
     HCI_CONNECT_IN_STATE,
     HCI_REMOTE_NAME_STATE,
     HCI_CHANGE_CONNECTION,
@@ -114,9 +98,7 @@ enum eHCI {
     HCI_OCF_WRITE_ACCEPT_TIMEOUT = 0x16, // OGF = 0x03
     HCI_OCF_WRITE_SCAN_ENABLE = 0x1A,    // OGF = 0x03
 
-    HCI_OCF_READ_BDADDR = 0x09,   // OGF = 0x04
-    HCI_OCF_READ_VERSION = 0x01,  // OGF = 0x04
-    HCI_OCF_READ_FEATURES = 0x03, // OGF = 0x04
+    HCI_OCF_READ_BDADDR = 0x09, // OGF = 0x04
 
     /* HCI events managed */
     HCI_EVENT_CONNECT_COMPLETE = 0x03,
@@ -138,15 +120,13 @@ enum eHCI {
     HCI_EVENT_MAX_SLOT_CHANGE = 0x1B, //Max Slots Change event
 
     /* HCI event flags for hci_event_flag */
-    HCI_FLAG_COMMAND_COMPLETE = 0x0001,
-    HCI_FLAG_COMMAND_STATUS = 0x0002,
-    HCI_FLAG_CONNECT_COMPLETE = 0x0004,
-    HCI_FLAG_DISCONN_COMPLETE = 0x0008,
-    HCI_FLAG_INCOMING_REQUEST = 0x0010,
-    HCI_FLAG_READ_BDADDR = 0x0020,
-    HCI_FLAG_REMOTE_NAME_COMPLETE = 0x0040,
-    HCI_FLAG_READ_VERSION = 0x0080,
-    HCI_FLAG_READ_FEATURES = 0x0100,
+    HCI_FLAG_COMMAND_COMPLETE = 0x01,
+    HCI_FLAG_COMMAND_STATUS = 0x02,
+    HCI_FLAG_CONNECT_COMPLETE = 0x04,
+    HCI_FLAG_DISCONN_COMPLETE = 0x08,
+    HCI_FLAG_INCOMING_REQUEST = 0x10,
+    HCI_FLAG_READ_BDADDR = 0x20,
+    HCI_FLAG_REMOTE_NAME_COMPLETE = 0x40,
 
     /* HCI Scan Enable Parameters */
     SCAN_ENABLE_NOINQ_NOPAG = 0x00,
@@ -370,7 +350,11 @@ struct ds4report
 
 } __attribute__((packed));
 
-void mips_memcpy(void *, const void *, unsigned);
-void mips_memset(void *, int, unsigned);
+int ds34bt_init(u8 pads, u8 options);
+int ds34bt_get_status(int port);
+void ds34bt_reset();
+int ds34bt_get_data(u8 *dst, int size, int port);
+void ds34bt_set_rumble(u8 lrum, u8 rrum, int port);
+void ds34bt_set_mode(int mode, int lock, int port);
 
 #endif

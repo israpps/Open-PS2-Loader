@@ -41,7 +41,7 @@ int usbFindPartition(char *target, const char *name, int write)
         else
             sprintf(path, "mass%d:%s", i, name);
         if (write)
-            fd = open(path, O_WRONLY|O_TRUNC|O_CREAT, 0666);
+            fd = open(path, O_WRONLY | O_TRUNC | O_CREAT, 0666);
         else
             fd = open(path, O_RDONLY);
 
@@ -152,7 +152,7 @@ static int usbNeedsUpdate(void)
     // update Themes
     if (!ThemesLoaded) {
         sprintf(path, "%sTHM", usbPrefix);
-        if (thmAddElements(path, "/", usbGameList.mode) > 0)
+        if (thmAddElements(path, "/", 1) > 0)
             ThemesLoaded = 1;
     }
 
@@ -410,8 +410,8 @@ static void usbCleanUp(int exception)
 
         free(usbGames);
 
-//      if ((exception & UNMOUNT_EXCEPTION) == 0)
-//          ...
+        //      if ((exception & UNMOUNT_EXCEPTION) == 0)
+        //          ...
     }
 }
 
@@ -435,11 +435,20 @@ static int usbCheckVMC(char *name, int createSize)
 
 static void usbGetAppsPath(char *path, int max)
 {
-    snprintf(path, max, "%s/APPS", usbPrefix);
+    snprintf(path, max, "%sAPPS", usbPrefix);
+}
+
+static void usbGetLegacyAppsPath(char *path, int max)
+{
+    snprintf(path, max, "%sconf_apps.cfg", usbPrefix);
+}
+
+static void usbGetLegacyAppsInfo(char *path, int max, char *name)
+{
+    snprintf(path, max, "%s" OPL_FOLDER "/%s.cfg", usbPrefix, name);
 }
 
 static item_list_t usbGameList = {
-    USB_MODE, 2, 0, 0, MENU_MIN_INACTIVE_FRAMES, USB_MODE_UPDATE_DELAY, "USB Games", _STR_USB_GAMES, &usbGetAppsPath, &usbInit, &usbNeedsUpdate,
+    USB_MODE, 2, 0, 0, MENU_MIN_INACTIVE_FRAMES, USB_MODE_UPDATE_DELAY, "USB Games", _STR_USB_GAMES, &usbGetAppsPath, &usbGetLegacyAppsPath, &usbGetLegacyAppsInfo, &usbInit, &usbNeedsUpdate,
     &usbUpdateGameList, &usbGetGameCount, &usbGetGame, &usbGetGameName, &usbGetGameNameLength, &usbGetGameStartup, &usbDeleteGame, &usbRenameGame,
-    &usbLaunchGame, &usbGetConfig, &usbGetImage, &usbCleanUp, &usbShutdown, &usbCheckVMC, USB_ICON
-};
+    &usbLaunchGame, &usbGetConfig, &usbGetImage, &usbCleanUp, &usbShutdown, &usbCheckVMC, USB_ICON};

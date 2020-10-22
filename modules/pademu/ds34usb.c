@@ -8,8 +8,7 @@
 #include "thbase.h"
 #include "thsemap.h"
 #include "ds34usb.h"
-
-IRX_ID("ds34usb", 1, 1);
+#include "sys_utils.h"
 
 //#define DPRINTF(x...) printf(x)
 #define DPRINTF(x...)
@@ -17,7 +16,7 @@ IRX_ID("ds34usb", 1, 1);
 #define REQ_USB_OUT (USB_DIR_OUT | USB_TYPE_CLASS | USB_RECIP_INTERFACE)
 #define REQ_USB_IN (USB_DIR_IN | USB_TYPE_CLASS | USB_RECIP_INTERFACE)
 
-#define MAX_PADS 2
+#define MAX_PADS 4
 
 static u8 output_01_report[] =
     {
@@ -49,15 +48,10 @@ static u8 power_level[] =
 static u8 rgbled_patterns[][2][3] =
     {
         {{0x00, 0x00, 0x10}, {0x00, 0x00, 0x7F}}, // light blue/blue
-        {{0x00, 0x10, 0x00}, {0x00, 0x7F, 0x00}}, // light green/green/
+        {{0x00, 0x10, 0x00}, {0x00, 0x7F, 0x00}}, // light green/green
         {{0x10, 0x10, 0x00}, {0x7F, 0x7F, 0x00}}, // light yellow/yellow
         {{0x00, 0x10, 0x10}, {0x00, 0x7F, 0x7F}}, // light cyan/cyan
 };
-
-static u8 link_key[] = //for ds4 authorisation
-    {
-        0x56, 0xE8, 0x81, 0x38, 0x08, 0x06, 0x51, 0x41,
-        0xC0, 0x7F, 0x12, 0xAA, 0xD9, 0x66, 0x3C, 0xCE};
 
 static u8 usb_buf[MAX_BUFFER_SIZE + 32] __attribute((aligned(4))) = {0};
 
@@ -73,7 +67,6 @@ UsbDriver usb_driver = {NULL, NULL, "ds34usb", usb_probe, usb_connect, usb_disco
 static void DS3USB_init(int pad);
 static void readReport(u8 *data, int pad);
 static int LEDRumble(u8 *led, u8 lrum, u8 rrum, int pad);
-static int Rumble(u8 lrum, u8 rrum, int pad);
 
 ds34usb_device ds34pad[MAX_PADS];
 
@@ -246,7 +239,6 @@ static void usb_config_set(int result, int count, void *arg)
     }
 
     LEDRumble(led, 0, 0, pad);
-    DelayThread(20000);
 
     ds34pad[pad].status |= DS34USB_STATE_RUNNING;
 
@@ -263,6 +255,8 @@ static void DS3USB_init(int pad)
     UsbControlTransfer(ds34pad[pad].controlEndp, REQ_USB_OUT, USB_REQ_SET_REPORT, (HID_USB_GET_REPORT_FEATURE << 8) | 0xF4, 0, 4, usb_buf, NULL, NULL);
 }
 
+#define MAX_DELAY 10
+
 static void readReport(u8 *data, int pad)
 {
     if (data[0]) {
@@ -271,6 +265,9 @@ static void readReport(u8 *data, int pad)
             struct ds3report *report;
 
             report = (struct ds3report *)&data[2];
+
+            if (report->RightStickX == 0 && report->RightStickY == 0) // ledrumble cmd causes null report sometime
+                return;
 
             ds34pad[pad].data[0] = ~report->ButtonStateL;
             ds34pad[pad].data[1] = ~report->ButtonStateH;
@@ -295,10 +292,26 @@ static void readReport(u8 *data, int pad)
             ds34pad[pad].data[16] = report->PressureL2; //L2
             ds34pad[pad].data[17] = report->PressureR2; //R2
 
-            if (report->PSButtonState && report->Power != 0xEE) //display battery level
-                ds34pad[pad].oldled[0] = power_level[report->Power];
-            else
-                ds34pad[pad].oldled[0] = led_patterns[pad][1];
+            if (report->PSButtonState) {                                       //display battery level
+                if (report->Select && (ds34pad[pad].btn_delay == MAX_DELAY)) { //PS + SELECT
+                    if (ds34pad[pad].analog_btn < 2)                           //unlocked mode
+                        ds34pad[pad].analog_btn = !ds34pad[pad].analog_btn;
+
+                    ds34pad[pad].oldled[0] = led_patterns[pad][(ds34pad[pad].analog_btn & 1)];
+                    ds34pad[pad].btn_delay = 1;
+                } else {
+                    if (report->Power != 0xEE)
+                        ds34pad[pad].oldled[0] = power_level[report->Power];
+
+                    if (ds34pad[pad].btn_delay < MAX_DELAY)
+                        ds34pad[pad].btn_delay++;
+                }
+            } else {
+                ds34pad[pad].oldled[0] = led_patterns[pad][(ds34pad[pad].analog_btn & 1)];
+
+                if (ds34pad[pad].btn_delay > 0)
+                    ds34pad[pad].btn_delay--;
+            }
 
             if (report->Power == 0xEE) //charging
                 ds34pad[pad].oldled[3] = 1;
@@ -387,20 +400,39 @@ static void readReport(u8 *data, int pad)
             ds34pad[pad].data[16] = report->PressureL2; //L2
             ds34pad[pad].data[17] = report->PressureR2; //R2
 
-            if (report->PSButton) { //display battery level
-                ds34pad[pad].oldled[0] = report->Battery;
-                ds34pad[pad].oldled[1] = 0;
-                ds34pad[pad].oldled[2] = 0;
+            if (report->PSButton) {                                           //display battery level
+                if (report->Share && (ds34pad[pad].btn_delay == MAX_DELAY)) { //PS + Share
+                    if (ds34pad[pad].analog_btn < 2)                          //unlocked mode
+                        ds34pad[pad].analog_btn = !ds34pad[pad].analog_btn;
+
+                    ds34pad[pad].oldled[0] = rgbled_patterns[pad][(ds34pad[pad].analog_btn & 1)][0];
+                    ds34pad[pad].oldled[1] = rgbled_patterns[pad][(ds34pad[pad].analog_btn & 1)][1];
+                    ds34pad[pad].oldled[2] = rgbled_patterns[pad][(ds34pad[pad].analog_btn & 1)][2];
+                    ds34pad[pad].btn_delay = 1;
+                } else {
+                    ds34pad[pad].oldled[0] = report->Battery;
+                    ds34pad[pad].oldled[1] = 0;
+                    ds34pad[pad].oldled[2] = 0;
+
+                    if (ds34pad[pad].btn_delay < MAX_DELAY)
+                        ds34pad[pad].btn_delay++;
+                }
             } else {
-                ds34pad[pad].oldled[0] = rgbled_patterns[pad][1][0];
-                ds34pad[pad].oldled[1] = rgbled_patterns[pad][1][1];
-                ds34pad[pad].oldled[2] = rgbled_patterns[pad][1][2];
+                ds34pad[pad].oldled[0] = rgbled_patterns[pad][(ds34pad[pad].analog_btn & 1)][0];
+                ds34pad[pad].oldled[1] = rgbled_patterns[pad][(ds34pad[pad].analog_btn & 1)][1];
+                ds34pad[pad].oldled[2] = rgbled_patterns[pad][(ds34pad[pad].analog_btn & 1)][2];
+
+                if (ds34pad[pad].btn_delay > 0)
+                    ds34pad[pad].btn_delay--;
             }
 
             if (report->Power != 0xB && report->Usb_plugged) //charging
                 ds34pad[pad].oldled[3] = 1;
             else
                 ds34pad[pad].oldled[3] = 0;
+        }
+        if (ds34pad[pad].btn_delay > 0) {
+            ds34pad[pad].update_rum = 1;
         }
     }
 }
@@ -423,7 +455,8 @@ static int LEDRumble(u8 *led, u8 lrum, u8 rrum, int pad)
 
         usb_buf[9] = led[0] & 0x7F; //LED Conf
 
-        if (led[3]) { //means charging, so blink
+        if (led[3]) //means charging, so blink
+        {
             usb_buf[13] = 0x32;
             usb_buf[18] = 0x32;
             usb_buf[23] = 0x32;
@@ -435,14 +468,15 @@ static int LEDRumble(u8 *led, u8 lrum, u8 rrum, int pad)
         usb_buf[0] = 0x05;
         usb_buf[1] = 0xFF;
 
-        usb_buf[4] = rrum; //ds4 has full control
+        usb_buf[4] = rrum * 255; //ds4 has full control
         usb_buf[5] = lrum;
 
         usb_buf[6] = led[0]; //r
         usb_buf[7] = led[1]; //g
         usb_buf[8] = led[2]; //b
 
-        if (led[3]) {           //means charging, so blink
+        if (led[3]) //means charging, so blink
+        {
             usb_buf[9] = 0x80;  // Time to flash bright (255 = 2.5 seconds)
             usb_buf[10] = 0x80; // Time to flash dark (255 = 2.5 seconds)
         }
@@ -454,9 +488,6 @@ static int LEDRumble(u8 *led, u8 lrum, u8 rrum, int pad)
     ds34pad[pad].oldled[1] = led[1];
     ds34pad[pad].oldled[2] = led[2];
     ds34pad[pad].oldled[3] = led[3];
-
-    ds34pad[pad].lrum = lrum;
-    ds34pad[pad].rrum = rrum;
 
     return ret;
 }
@@ -481,58 +512,20 @@ static void TransferWait(int sema)
     }
 }
 
-static int LEDRUM(u8 *led, u8 lrum, u8 rrum, int pad)
-{
-    int ret = 0;
-
-    WaitSema(ds34pad[pad].sema);
-
-    if (ds34pad[pad].update_rum) {
-        ret = LEDRumble(led, lrum, rrum, pad);
-
-        if (ret == USB_RC_OK)
-            TransferWait(ds34pad[pad].cmd_sema);
-        else
-            DPRINTF("DS34USB: LEDRUM usb transfer error 0x%02X\n", ret);
-    }
-
-    SignalSema(ds34pad[pad].sema);
-
-    return ret;
-}
-
-static int LED(u8 *led, int pad)
-{
-    return LEDRUM(led, ds34pad[pad].lrum, ds34pad[pad].rrum, pad);
-}
-
-static int Rumble(u8 lrum, u8 rrum, int pad)
-{
-    return LEDRUM(ds34pad[pad].oldled, lrum, rrum, pad);
-}
-
 void ds34usb_set_rumble(u8 lrum, u8 rrum, int port)
 {
-    if (port >= MAX_PADS)
-        return;
+    WaitSema(ds34pad[port].sema);
 
-    Rumble(lrum, rrum, port);
+    ds34pad[port].update_rum = 1;
+    ds34pad[port].lrum = lrum;
+    ds34pad[port].rrum = rrum;
+
+    SignalSema(ds34pad[port].sema);
 }
 
-void ds34usb_set_led(u8 *led, int port)
+int ds34usb_get_data(u8 *dst, int size, int port)
 {
-    if (port >= MAX_PADS)
-        return;
-
-    LED(led, port);
-}
-
-void ds34usb_get_data(char *dst, int size, int port)
-{
-    int ret;
-
-    if (port >= MAX_PADS)
-        return;
+    int ret = 0;
 
     WaitSema(ds34pad[port].sema);
 
@@ -551,99 +544,29 @@ void ds34usb_get_data(char *dst, int size, int port)
     }
 
     mips_memcpy(dst, ds34pad[port].data, size);
-
-    SignalSema(ds34pad[port].sema);
-}
-
-int ds34usb_get_bdaddr(u8 *data, int port)
-{
-    int i, ret;
-
-    if (port >= MAX_PADS)
-        return 0;
+    ret = ds34pad[port].analog_btn & 1;
 
     if (ds34pad[port].update_rum) {
+        ret = LEDRumble(ds34pad[port].oldled, ds34pad[port].lrum, ds34pad[port].rrum, port);
+        if (ret == USB_RC_OK)
+            TransferWait(ds34pad[port].cmd_sema);
+        else
+            DPRINTF("DS34USB: LEDRumble usb transfer error %d\n", ret);
+
         ds34pad[port].update_rum = 0;
-        return 0;
     }
 
-    WaitSema(ds34pad[port].sema);
-
-    PollSema(ds34pad[port].cmd_sema);
-
-    if (ds34pad[port].type == DS3) {
-        ret = UsbControlTransfer(ds34pad[port].controlEndp, REQ_USB_IN, USB_REQ_GET_REPORT, (HID_USB_GET_REPORT_FEATURE << 8) | 0xF5, 0, 8, usb_buf, usb_cmd_cb, (void *)port);
-
-        if (ret == USB_RC_OK) {
-            TransferWait(ds34pad[port].cmd_sema);
-
-            for (i = 0; i < 6; i++)
-                data[5 - i] = usb_buf[2 + i];
-
-            ret = 1;
-        } else {
-            DPRINTF("DS34USB: ds3usb_get_bdaddr usb transfer error %d\n", ret);
-            ret = 0;
-        }
-    } else {
-        ret = UsbControlTransfer(ds34pad[port].controlEndp, REQ_USB_IN, USB_REQ_GET_REPORT, (HID_USB_GET_REPORT_FEATURE << 8) | 0x12, 0, 16, usb_buf, usb_cmd_cb, (void *)port);
-
-        if (ret == USB_RC_OK) {
-            TransferWait(ds34pad[port].cmd_sema);
-
-            for (i = 0; i < 6; i++)
-                data[5 - i] = usb_buf[15 - i];
-
-            ret = 1;
-        } else {
-            DPRINTF("DS34USB: ds3usb_get_bdaddr usb transfer error %d\n", ret);
-            ret = 0;
-        }
-    }
-
-    ds34pad[port].update_rum = 1;
     SignalSema(ds34pad[port].sema);
 
     return ret;
 }
 
-void ds34usb_set_bdaddr(u8 *data, int port)
+void ds34usb_set_mode(int mode, int lock, int port)
 {
-    int i, ret;
-
-    if (port >= MAX_PADS)
-        return;
-
-    WaitSema(ds34pad[port].sema);
-
-    PollSema(ds34pad[port].cmd_sema);
-
-    if (ds34pad[port].type == DS3) {
-        usb_buf[0] = 0x01;
-        usb_buf[1] = 0x00;
-
-        for (i = 0; i < 6; i++)
-            usb_buf[i + 2] = data[5 - i];
-
-        ret = UsbControlTransfer(ds34pad[port].controlEndp, REQ_USB_OUT, USB_REQ_SET_REPORT, (HID_USB_GET_REPORT_FEATURE << 8) | 0xF5, 0, 8, usb_buf, usb_cmd_cb, (void *)port);
-    } else {
-        usb_buf[0] = 0x13;
-
-        for (i = 0; i < 6; i++)
-            usb_buf[i + 1] = data[i];
-
-        for (i = 0; i < sizeof(link_key); i++)
-            usb_buf[i + 7] = link_key[i];
-
-        ret = UsbControlTransfer(ds34pad[port].controlEndp, REQ_USB_OUT, USB_REQ_SET_REPORT, (HID_USB_GET_REPORT_FEATURE << 8) | 0x13, 0, 24, usb_buf, usb_cmd_cb, (void *)port);
-    }
-
-    if (ret == USB_RC_OK)
-        TransferWait(ds34pad[port].cmd_sema);
+    if (lock == 3)
+        ds34pad[port].analog_btn = 3;
     else
-        DPRINTF("DS34USB: ds3usb_set_bdaddr usb transfer error %d\n", ret);
-
-    SignalSema(ds34pad[port].sema);
+        ds34pad[port].analog_btn = mode;
 }
 
 void ds34usb_reset()
@@ -658,9 +581,6 @@ int ds34usb_get_status(int port)
 {
     int ret;
 
-    if (port >= MAX_PADS)
-        return 0;
-
     WaitSema(ds34pad[port].sema);
     ret = ds34pad[port].status;
     SignalSema(ds34pad[port].sema);
@@ -668,86 +588,9 @@ int ds34usb_get_status(int port)
     return ret;
 }
 
-void ds34usb_init(u8 pads)
-{
-    u8 pad;
-
-    for (pad = 0; pad < MAX_PADS; pad++) {
-        WaitSema(ds34pad[pad].sema);
-        ds34pad[pad].enabled = (pads >> pad) & 1;
-        SignalSema(ds34pad[pad].sema);
-    }
-}
-
-static void rpc_thread(void *data);
-static void *rpc_sf(int cmd, void *data, int size);
-
-static SifRpcDataQueue_t rpc_que __attribute__((aligned(16)));
-static SifRpcServerData_t rpc_svr __attribute__((aligned(16)));
-
-static int rpc_buf[64] __attribute((aligned(16)));
-
-#define DS34USB_INIT 1
-#define DS34USB_GET_STATUS 2
-#define DS34USB_GET_BDADDR 3
-#define DS34USB_SET_BDADDR 4
-#define DS34USB_SET_RUMBLE 5
-#define DS34USB_SET_LED 6
-#define DS34USB_GET_DATA 7
-#define DS34USB_RESET 8
-
-#define DS34USB_BIND_RPC_ID 0x18E3878E
-
-void rpc_thread(void *data)
-{
-    SifInitRpc(0);
-    SifSetRpcQueue(&rpc_que, GetThreadId());
-    SifRegisterRpc(&rpc_svr, DS34USB_BIND_RPC_ID, rpc_sf, rpc_buf, NULL, NULL, &rpc_que);
-    SifRpcLoop(&rpc_que);
-}
-
-void *rpc_sf(int cmd, void *data, int size)
-{
-    switch (cmd) {
-        case DS34USB_INIT:
-            ds34usb_init(*(u8 *)data);
-            break;
-        case DS34USB_GET_STATUS:
-            *(u8 *)data = ds34usb_get_status(*(u8 *)data);
-            break;
-        case DS34USB_GET_BDADDR:
-            *(u8 *)data = ds34usb_get_bdaddr((u8 *)(data + 1), *(u8 *)data);
-            break;
-        case DS34USB_SET_BDADDR:
-            ds34usb_set_bdaddr((u8 *)(data + 1), *(u8 *)data);
-            break;
-        case DS34USB_SET_RUMBLE:
-            ds34usb_set_rumble(*(u8 *)(data + 1), *(u8 *)(data + 2), *(u8 *)data);
-            break;
-        case DS34USB_SET_LED:
-            ds34usb_set_led((u8 *)(data + 1), *(u8 *)data);
-            break;
-        case DS34USB_GET_DATA:
-            ds34usb_get_data((u8 *)data, 18, *(u8 *)data);
-            break;
-        case DS34USB_RESET:
-            ds34usb_reset();
-            break;
-        default:
-            break;
-    }
-
-    return data;
-}
-
-int _start(int argc, char *argv[])
+int ds34usb_init(u8 pads, u8 options)
 {
     int pad;
-    u8 enable = 0xFF;
-
-    if (argc > 1) {
-        enable = argv[1][0];
-    }
 
     for (pad = 0; pad < MAX_PADS; pad++) {
         ds34pad[pad].status = 0;
@@ -763,12 +606,12 @@ int _start(int argc, char *argv[])
         ds34pad[pad].cmd_sema = -1;
         ds34pad[pad].controlEndp = -1;
         ds34pad[pad].interruptEndp = -1;
-        ds34pad[pad].outEndp = -1;
-        ds34pad[pad].enabled = (enable >> pad) & 1;
+        ds34pad[pad].enabled = (pads >> pad) & 1;
         ds34pad[pad].type = 0;
 
         ds34pad[pad].data[0] = 0xFF;
         ds34pad[pad].data[1] = 0xFF;
+        ds34pad[pad].analog_btn = 0;
 
         mips_memset(&ds34pad[pad].data[2], 0x7F, 4);
         mips_memset(&ds34pad[pad].data[6], 0x00, 12);
@@ -778,29 +621,14 @@ int _start(int argc, char *argv[])
 
         if (ds34pad[pad].sema < 0 || ds34pad[pad].cmd_sema < 0) {
             DPRINTF("DS34USB: Failed to allocate I/O semaphore.\n");
-            return MODULE_NO_RESIDENT_END;
+            return 0;
         }
     }
 
     if (UsbRegisterDriver(&usb_driver) != USB_RC_OK) {
         DPRINTF("DS34USB: Error registering USB devices\n");
-        return MODULE_NO_RESIDENT_END;
+        return 0;
     }
 
-    iop_thread_t rpc_th;
-
-    rpc_th.attr = TH_C;
-    rpc_th.thread = rpc_thread;
-    rpc_th.priority = 40;
-    rpc_th.stacksize = 0x800;
-    rpc_th.option = 0;
-
-    int thid = CreateThread(&rpc_th);
-
-    if (thid > 0) {
-        StartThread(thid, NULL);
-        return MODULE_RESIDENT_END;
-    }
-
-    return MODULE_NO_RESIDENT_END;
+    return 1;
 }
