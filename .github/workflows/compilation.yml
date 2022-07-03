@@ -31,13 +31,25 @@ jobs:
     - name: Create detailed changelog
       run: sh ./make_changelog.sh
 
+    - name: make ISO
+      run: |
+          cd labs/opltestiso/
+          make iso
+
     - name: Upload release artifact ELF
       if: ${{ success() }}
       uses: actions/upload-artifact@v3
       with:
         name: OPNPS2LD
         path: |
-          OPNPS2LD-*.ELF
+           OPNPS2LD-*.ELF
+
+    - name: Upload release artifact ISO
+      uses: actions/upload-artifact@v3
+      with:
+        name: OPLTESTISO
+        path: |
+           labs/opltestiso/*.iso
 
     - name: Upload release artifact info
       if: ${{ success() }}
