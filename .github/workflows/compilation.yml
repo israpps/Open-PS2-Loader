@@ -13,7 +13,7 @@ jobs:
     steps:
     - name: Install dependencies
       run: |
-        apk add build-base git zip gawk python3 py3-pip bash mkisofs
+        apk add build-base git zip gawk python3 py3-pip bash genisoimage
 
     - name: git checkout
       uses: actions/checkout@v3
