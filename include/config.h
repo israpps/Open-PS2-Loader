@@ -38,12 +38,16 @@ enum CONFIG_INDEX {
 #define CONFIG_ITEM_DNAS "$DNAS"
 #define CONFIG_ITEM_CONFIGSOURCE "$ConfigSource"
 
-//Per-Game GSM keys. -Bat-
-#define CONFIG_ITEM_GSMSOURCE "$GSMSource"
-#define CONFIG_ITEM_ENABLEGSM "$EnableGSM"
-#define CONFIG_ITEM_GSMVMODE "$GSMVMode"
-#define CONFIG_ITEM_GSMXOFFSET "$GSMXOffset"
-#define CONFIG_ITEM_GSMYOFFSET "$GSMYOffset"
+#define CONFIG_ITEM_OSDLNG        "$CustomLanguageValue"
+#define CONFIG_ITEM_OSDLNG_SOURCE "$CustomLanguageSource"
+#define CONFIG_ITEM_OSDLNG_ENABLE "$CustomLanguageEnable"
+
+// Per-Game GSM keys. -Bat-
+#define CONFIG_ITEM_GSMSOURCE   "$GSMSource"
+#define CONFIG_ITEM_ENABLEGSM   "$EnableGSM"
+#define CONFIG_ITEM_GSMVMODE    "$GSMVMode"
+#define CONFIG_ITEM_GSMXOFFSET  "$GSMXOffset"
+#define CONFIG_ITEM_GSMYOFFSET  "$GSMYOffset"
 #define CONFIG_ITEM_GSMFIELDFIX "$GSMFIELDFix"
 
 //Per-Game CHEAT keys. -Bat-

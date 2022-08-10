@@ -9,7 +9,7 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    container: ps2dev/ps2dev:latest
+    container: ps2dev/ps2dev:v1.2.0
     steps:
     - name: Install dependencies
       run: |
@@ -18,11 +18,12 @@ jobs:
     - name: git checkout
       uses: actions/checkout@v2
     - run: |
+        git config --global --add safe.directory "$GITHUB_WORKSPACE"
         git fetch --prune --unshallow
 
     - name: Compile -> make clean release
       run: |
-        make --trace clean release
+        make --trace clean release LOCALVERSION=OSDLang
 
     - name: Create detailed changelog
       run: sh ./make_changelog.sh
@@ -63,6 +64,7 @@ jobs:
     - name: git checkout
       uses: actions/checkout@v2
     - run: |
+        git config --global --add safe.directory "$GITHUB_WORKSPACE"
         git fetch --prune --unshallow
 
     - name: Get version
@@ -71,7 +73,7 @@ jobs:
 
     - name: Compile -> make ${{ matrix.t10k }} ${{ matrix.igs }} ${{ matrix.pademu }} ${{ matrix.rtl }} NOT_PACKED=1
       run: |
-        make --trace ${{ matrix.t10k }} ${{ matrix.igs }} ${{ matrix.pademu }} ${{ matrix.rtl }} NOT_PACKED=1
+        make --trace ${{ matrix.t10k }} ${{ matrix.igs }} ${{ matrix.pademu }} ${{ matrix.rtl }} NOT_PACKED=1 LOCALVERSION=OSDLang
         mv opl.elf OPNPS2LD-${{ steps.version.outputs.version }}-${{ matrix.t10k }}-${{ matrix.igs }}-${{ matrix.pademu }}-${{ matrix.rtl }}.ELF
 
     - name: Create detailed changelog

@@ -188,6 +188,10 @@ unsigned char gDefaultTextColor[3];
 unsigned char gDefaultSelTextColor[3];
 unsigned char gDefaultUITextColor[3];
 
+int gOSDLanguageValue;
+int gOSDLanguageEnable;
+int gOSDLanguageSource;
+
 void moduleUpdateMenu(int mode, int themeChanged, int langChanged)
 {
     if (mode == -1)

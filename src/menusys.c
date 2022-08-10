@@ -23,6 +23,7 @@ enum MENU_IDs {
     MENU_SETTINGS = 0,
     MENU_GFX_SETTINGS,
     MENU_AUDIO_SETTINGS,
+    MENU_OSD_LANGUAGE_SETTINGS,
     MENU_PARENTAL_LOCK,
     MENU_NET_CONFIG,
     MENU_NET_UPDATE,
@@ -41,6 +42,7 @@ enum GAME_MENU_IDs {
 #ifdef PADEMU
     GAME_PADEMU_SETTINGS,
 #endif
+    GAME_OSD_LANGUAGE_SETTINGS,
     GAME_SAVE_CHANGES,
     GAME_TEST_CHANGES,
     GAME_REMOVE_CHANGES,
@@ -202,6 +204,7 @@ static void menuInitMainMenu(void)
     submenuAppendItem(&mainMenu, -1, NULL, MENU_SETTINGS, _STR_SETTINGS);
     submenuAppendItem(&mainMenu, -1, NULL, MENU_GFX_SETTINGS, _STR_GFX_SETTINGS);
     submenuAppendItem(&mainMenu, -1, NULL, MENU_AUDIO_SETTINGS, _STR_AUDIO_SETTINGS);
+    submenuAppendItem(&mainMenu, -1, NULL, MENU_OSD_LANGUAGE_SETTINGS, _STR_OSD_SETTINGS);
     submenuAppendItem(&mainMenu, -1, NULL, MENU_PARENTAL_LOCK, _STR_PARENLOCKCONFIG);
     submenuAppendItem(&mainMenu, -1, NULL, MENU_NET_CONFIG, _STR_NETCONFIG);
     submenuAppendItem(&mainMenu, -1, NULL, MENU_NET_UPDATE, _STR_NET_UPDATE);
@@ -233,6 +236,7 @@ void menuInitGameMenu(void)
 #ifdef PADEMU
     submenuAppendItem(&gameMenu, -1, NULL, GAME_PADEMU_SETTINGS, _STR_PADEMUCONFIG);
 #endif
+    submenuAppendItem(&gameMenu, -1, NULL, GAME_OSD_LANGUAGE_SETTINGS, _STR_OSD_SETTINGS);
     submenuAppendItem(&gameMenu, -1, NULL, GAME_SAVE_CHANGES, _STR_SAVE_CHANGES);
     submenuAppendItem(&gameMenu, -1, NULL, GAME_TEST_CHANGES, _STR_TEST);
     submenuAppendItem(&gameMenu, -1, NULL, GAME_REMOVE_CHANGES, _STR_REMOVE_ALL_SETTINGS);
@@ -712,13 +716,8 @@ void menuRenderMenu()
         // render, advance
         fntRenderString(gTheme->fonts[0], 320, y, ALIGN_CENTER, 0, 0, submenuItemGetText(&it->item), (cp == sitem) ? gTheme->selTextColor : gTheme->textColor);
         y += spacing;
-        if (gHDDStartMode && gEnableWrite) {
-            if (cp == 7)
-                y += spacing / 2;
-        } else {
-            if (cp == 6)
-                y += spacing / 2;
-        }
+        if (cp == (MENU_ABOUT - 1))
+            y += spacing / 2;
     }
 
     //hints
@@ -812,6 +811,9 @@ void menuHandleInputMenu()
         } else if (id == MENU_AUDIO_SETTINGS) {
             if (menuCheckParentalLock() == 0)
                 guiShowAudioConfig();
+        } else if (id == MENU_OSD_LANGUAGE_SETTINGS) {
+            if (menuCheckParentalLock() == 0)
+                guiGameShowOSDLanguageConfig(1);
         } else if (id == MENU_PARENTAL_LOCK) {
             if (menuCheckParentalLock() == 0)
                 guiShowParentalLockConfig();
@@ -828,8 +830,9 @@ void menuHandleInputMenu()
             guiShowAbout();
         } else if (id == MENU_SAVE_CHANGES) {
             if (menuCheckParentalLock() == 0) {
-                saveConfig(CONFIG_OPL | CONFIG_NETWORK, 1);
-                menuSetParentalLockCheckState(1); //Re-enable parental lock check.
+                guiGameSaveOSDLanguageGlobalConfig(configGetByType(CONFIG_GAME));
+                saveConfig(CONFIG_OPL | CONFIG_NETWORK | CONFIG_GAME, 1);
+                menuSetParentalLockCheckState(1); // Re-enable parental lock check.
             }
         } else if (id == MENU_EXIT) {
             if (guiMsgBox(_l(_STR_CONFIRMATION_EXIT), 1, NULL))
@@ -990,13 +993,8 @@ void menuRenderGameMenu()
         // render, advance
         fntRenderString(gTheme->fonts[0], 320, y, ALIGN_CENTER, 0, 0, submenuItemGetText(&it->item), (cp == sitem) ? gTheme->selTextColor : gTheme->textColor);
         y += spacing;
-#ifdef PADEMU
-        if (cp == 4 || cp == 6)
-            y += spacing / 2; // leave a blank space before rendering Save & Remove Settings.
-#else
-        if (cp == 3 || cp == 5)
+        if (cp == (GAME_SAVE_CHANGES - 1) || cp == (GAME_REMOVE_CHANGES - 1))
             y += spacing / 2;
-#endif
     }
 
     //hints
@@ -1046,6 +1044,8 @@ void menuHandleInputGameMenu()
         } else if (menuID == GAME_PADEMU_SETTINGS) {
             guiGameShowPadEmuConfig();
 #endif
+        } else if (menuID == GAME_OSD_LANGUAGE_SETTINGS) {
+            guiGameShowOSDLanguageConfig(0);
         } else if (menuID == GAME_SAVE_CHANGES) {
             if (guiGameSaveConfig(itemConfig, selected_item->item->userdata))
                 configSetInt(itemConfig, CONFIG_ITEM_CONFIGSOURCE, CONFIG_SOURCE_USER);

@@ -13,7 +13,12 @@ void guiGameShowVMCMenu(int id, item_list_t *support);
 void guiGameShowCompatConfig(int id, item_list_t *support, config_set_t *configSet);
 void guiGameShowGSConfig(void);
 void guiGameShowCheatConfig(void);
+
 void guiGameShowPadEmuConfig(void);
+
+
+void guiGameShowOSDLanguageConfig(int forceGlobal);
+void guiGameSaveOSDLanguageGlobalConfig(config_set_t *configGame);
 
 void guiGameLoadConfig(item_list_t *support, config_set_t *configSet);
 int guiGameSaveConfig(config_set_t *configSet, item_list_t *support);
