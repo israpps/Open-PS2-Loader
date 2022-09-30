@@ -831,7 +831,7 @@ struct UIItem diaAbout[] = {
     {UI_BREAK},
     {UI_LABEL, 0, 1, 1, -1, 0, 0, {.label = {NULL, _STR_FORUM_DETAILS}}},
     {UI_SPACER},
-    {UI_LABEL, 0, 1, 1, -1, 0, 0, {.label = {"psx-place.com | OSD language enforcement by El_isra (matias israelson)", -1}}},
+    {UI_LABEL, 0, 1, 1, -1, 0, 0, {.label = {"psx-place.com | OSD language enforcement by El_isra", -1}}},
     {UI_BREAK},
 
     // buttons
