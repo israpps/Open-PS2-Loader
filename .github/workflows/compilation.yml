@@ -47,45 +47,41 @@ jobs:
           LICENSE
           README.md
 
-  build-variants:
+
+  build-debug:
+    strategy:
+      fail-fast: false
+      matrix:
+        debug: [debug, iopcore_debug, ingame_debug, deci2_debug] # eesio_debug broken
     runs-on: ubuntu-latest
     container: ps2dev/ps2dev:latest
-    strategy:
-      matrix:
-        rtl: ["", RTL=1]
-        pademu: ["", PADEMU=1]
-        igs: ["", IGS=1]
-        t10k: ["", DTL_T10000=1]
     steps:
     - name: Install dependencies
-      run: |
-        apk add build-base git
+      run: apk add build-base git zip gawk python3 py3-pip bash
 
     - name: git checkout
-      uses: actions/checkout@v2
+      uses: actions/checkout@v3
+
     - run: |
         git config --global --add safe.directory "$GITHUB_WORKSPACE"
         git fetch --prune --unshallow
+    - name: Install Python packages
+      run: pip3 install -r requirements.txt
 
     - name: Get version
       id: version
       run: echo "::set-output name=version::$(make oplversion)"
 
-    - name: Compile -> make ${{ matrix.t10k }} ${{ matrix.igs }} ${{ matrix.pademu }} ${{ matrix.rtl }} NOT_PACKED=1
+    - name: Compile -> make debug
       run: |
-        make --trace ${{ matrix.t10k }} ${{ matrix.igs }} ${{ matrix.pademu }} ${{ matrix.rtl }} NOT_PACKED=1 LOCALVERSION=OSDLang
-        mv opl.elf OPNPS2LD-${{ steps.version.outputs.version }}-${{ matrix.t10k }}-${{ matrix.igs }}-${{ matrix.pademu }}-${{ matrix.rtl }}.ELF
-
-    - name: Create detailed changelog
-      run: sh ./make_changelog.sh
-
+        make ${{ matrix.debug }} --trace
+        mv opl.elf opl-${{ matrix.debug }}.elf
     - name: Upload variants artifact ELF
-      if: ${{ success() }}
-      uses: actions/upload-artifact@v2
+      uses: actions/upload-artifact@v3
       with:
-        name: OPNPS2LD-VARIANTS
-        path: |
-          OPNPS2LD*.ELF
+        name: opl-debug-${{ steps.version.outputs.version }}-${{ matrix.docker }}
+        path: opl-*.elf
+
 
   release:
     needs: [build, build-variants]
