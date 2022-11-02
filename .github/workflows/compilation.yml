@@ -76,15 +76,14 @@ jobs:
       run: pip3 install -r requirements.txt
 
     - name: Get version
-      id: version
       run: |
         echo "OPL_VERSION=$(make oplversion)" >> $GITHUB_ENV
-        echo OPL_VERSION is ${{ env.OPL_VERSION }}
+        echo OPL_VERSION is $OPL_VERSION
 
     - name: Compile -> make ${{ matrix.t10k }} ${{ matrix.igs }} ${{ matrix.pademu }} ${{ matrix.rtl }} NOT_PACKED=1
       run: |
         make --trace ${{ matrix.t10k }} ${{ matrix.igs }} ${{ matrix.pademu }} ${{ matrix.rtl }} NOT_PACKED=1
-        mv opl.elf OPNPS2LD-${{ env.OPL_VERSION }}-${{ matrix.t10k }}-${{ matrix.igs }}-${{ matrix.pademu }}-${{ matrix.rtl }}.ELF
+        mv opl.elf OPNPS2LD-$OPL_VERSION-${{ matrix.t10k }}-${{ matrix.igs }}-${{ matrix.pademu }}-${{ matrix.rtl }}.ELF
 
     - name: Create detailed changelog
       run: sh ./make_changelog.sh
@@ -149,10 +148,9 @@ jobs:
       run: pip3 install -r requirements.txt
 
     - name: Get version
-      id: version
       run: |
         echo "OPL_VERSION=$(make oplversion)" >> $GITHUB_ENV
-        echo OPL_VERSION is ${{ env.OPL_VERSION }}
+        echo OPL_VERSION is $OPL_VERSION
 
     - name: Compile -> make debug
       run: |
@@ -179,10 +177,9 @@ jobs:
     - run: git fetch --prune --unshallow
 
     - name: Get version
-      id: version
       run: |
         echo "OPL_VERSION=$(make oplversion)" >> $GITHUB_ENV
-        echo OPL_VERSION is ${{ env.OPL_VERSION }}
+        echo OPL_VERSION is $OPL_VERSION
 
     - name: Download all artifacts
       uses: actions/download-artifact@v3
@@ -191,12 +188,12 @@ jobs:
       run: |
         cp INFO/* OPNPS2LD/
         cp INFO/* OPNPS2LD-VARIANTS/
-        7z a -t7z OPNPS2LD-${{ env.OPL_VERSION }}.7z OPNPS2LD/*
-        7z a -t7z OPNPS2LD-VARIANTS-${{ env.OPL_VERSION }}.7z OPNPS2LD-VARIANTS/*
-        7z a -t7z OPNPS2LD-LANGS-${{ env.OPL_VERSION }}.7z OPNPS2LD-LANGS/*
-        cp -f OPNPS2LD-${{ env.OPL_VERSION }}.7z OPNPS2LD.7z
-        cp -f OPNPS2LD-VARIANTS-${{ env.OPL_VERSION }}.7z OPNPS2LD-VARIANTS.7z
-        cp -f OPNPS2LD-LANGS-${{ env.OPL_VERSION }}.7z OPNPS2LD-LANGS.7z
+        7z a -t7z OPNPS2LD-$OPL_VERSION.7z OPNPS2LD/*
+        7z a -t7z OPNPS2LD-VARIANTS-$OPL_VERSION.7z OPNPS2LD-VARIANTS/*
+        7z a -t7z OPNPS2LD-LANGS-$OPL_VERSION.7z OPNPS2LD-LANGS/*
+        cp -f OPNPS2LD-$OPL_VERSION.7z OPNPS2LD.7z
+        cp -f OPNPS2LD-VARIANTS-$OPL_VERSION.7z OPNPS2LD-VARIANTS.7z
+        cp -f OPNPS2LD-LANGS-$OPL_VERSION.7z OPNPS2LD-LANGS.7z
 
     - name: Create prerelease
       if: github.ref == 'refs/heads/master'
