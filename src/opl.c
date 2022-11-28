@@ -1654,9 +1654,6 @@ static void init(void)
     // default variable values
     setDefaults();
 
-    padInit(0);
-    int padStatus = 0;
-
     configInit(NULL);
     rmInit();
     lngInit();
@@ -1665,7 +1662,9 @@ static void init(void)
     ioInit();
     menuInit();
 
-    startPads();
+    int padStatus = 0;
+    while (!padStatus)
+        padStatus = startPads();
 
     // compatibility update handler
     ioRegisterHandler(IO_COMPAT_UPDATE_DEFFERED, &compatDeferredUpdate);
@@ -1676,11 +1675,11 @@ static void init(void)
 
     gSelectButton = (InitConsoleRegionData() == CONSOLE_REGION_JAPAN) ? KEY_CIRCLE : KEY_CROSS;
 
-    while (!padStatus)
-        padStatus = startPads();
     readPads();
-    if (!getKeyPressed(KEY_START))
-        _loadConfig(); // only try to restore config if emergency key is not being pressed
+    if (getKeyPressed(KEY_START))
+		lscstatus = 0; // set lscstatus to 0 so _loadConfig initializes but does not load config
+	
+    _loadConfig();
 
     // queue deffered init of sound effects, which will take place after the preceding initialization steps within the queue are complete.
     ioPutRequest(IO_CUSTOM_SIMPLEACTION, &deferredAudioInit);
