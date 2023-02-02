@@ -150,6 +150,14 @@ jobs:
       run: |
         echo "OPL_VERSION=$(make oplversion)" >> $GITHUB_ENV
 
+    - name: PS2SDK -> make debug
+      run: |
+        git clone https://github.com/ps2dev/ps2sdk
+        cd ps2sdk
+        make -j $(getconf _NPROCESSORS_ONLN) clean
+        make -j 1 debug
+        make -j $(getconf _NPROCESSORS_ONLN) install
+
     - name: Compile -> make debug
       run: |
         make ${{ matrix.debug }} --trace
