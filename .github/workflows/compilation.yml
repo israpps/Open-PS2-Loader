@@ -160,7 +160,7 @@ jobs:
 
     - name: Compile -> make debug
       run: |
-        make ${{ matrix.debug }} --trace
+        make ${{ matrix.debug }} EESIO_DEBUG=1 --trace
         mv opl.elf opl-${{ matrix.debug }}.elf
 
     - name: Upload variants artifact ELF
