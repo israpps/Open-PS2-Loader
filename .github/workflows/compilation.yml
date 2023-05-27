@@ -155,7 +155,7 @@ jobs:
 
     - name: Compile -> make debug
       run: |
-        make ${{ matrix.debug }} --trace
+        make ${{ matrix.debug }} LOCALVERSION=FullDebug --trace
         mv opl.elf opl-${{ matrix.debug }}.elf
 
     - name: Upload variants artifact ELF
