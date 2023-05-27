@@ -142,6 +142,9 @@ jobs:
     - run: |
         git config --global --add safe.directory "$GITHUB_WORKSPACE"
         git fetch --prune --unshallow
+        git clone https://github.com/ps2dev/ps2sdk
+        cd ps2sdk
+        make DEBUG=1 release 
 
     - name: Install Python packages
       run: pip3 install -r requirements.txt
