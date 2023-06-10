@@ -99,9 +99,20 @@ static void bdmLoadBlockDeviceModules(void)
 
         mx4sioModLoaded = 1;
     }
-    sysLoadModuleBuffer(&ps2dev9_irx, size_ps2dev9_irx, 0, NULL);
-    sysLoadModuleBuffer(&smap_udpbd_irx, size_smap_udpbd_irx, 0, NULL);
 
+    static int dev9ModLoaded = 0;
+    if (!dev9ModLoaded) {
+        LOG("Loading DEV9\n");
+        sysLoadModuleBuffer(&ps2dev9_irx, size_ps2dev9_irx, 0, NULL);
+        dev9ModLoaded = 1;
+    }
+
+    static int udpbdModLoaded = 0;
+    if (dev9ModLoaded && !udpbdModLoaded) {
+        LOG("Loading UDPBD\n");
+        sysLoadModuleBuffer(&smap_udpbd_irx, size_smap_udpbd_irx, 0, NULL);
+        udpbdModLoaded = 1;
+    }
 }
 
 void bdmLoadModules(void)
