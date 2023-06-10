@@ -13,6 +13,10 @@ ifeq ($(HAS_BDM), 0)
   IOP_CFLAGS += -DNO_BDM
 endif
 
+ifeq ($(DEBUG),1)
+  IOP_CFLAGS += -DDEBUG
+endif
+
 all: $(IOP_BIN)
 
 clean:
