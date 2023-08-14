@@ -1,6 +1,6 @@
 name: CI-OPLTestISO
 
-on:
+on: 
   push:
     paths:
       - '.github/workflows/OPLTestISO.yml'
