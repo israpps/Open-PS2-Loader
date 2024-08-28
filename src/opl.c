@@ -1947,6 +1947,8 @@ int main(int argc, char *argv[])
 
     // reset, load modules
     reset();
+    InitDebug(); //restore kernel UART printf syscall
+    _print("# EE UART Syscall reenabled\n");
     ResetDeckardXParams();
 
     if (argc >= 5) {

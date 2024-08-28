@@ -289,5 +289,6 @@ int AddHistoryRecordUsingFullPath(const char *path)
     char filename[17];
 
     GetBootFilename(path, filename);
+    _print("HISTORY_RECORD: %s\n", filename);
     return AddHistoryRecord(filename);
 }
