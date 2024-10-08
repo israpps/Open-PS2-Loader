@@ -75,7 +75,11 @@ static iop_device_t genvmc_dev = {
     "genvmc",
     &genvmc_ops};
 
+#ifdef SUPPORT_NAMCO_SYSTEM_2x6
+#define sceMcDetectCard  McDetectCard2
+#else
 #define sceMcDetectCard  McDetectCard
+#endif
 #define sceMcReadPage    McReadPage
 #define sceMcGetCardType McGetMcType
 
@@ -579,6 +583,10 @@ static void VMC_create_thread(void *args)
             remove(param->VMC_filename);
             strcpy(genvmc_stats.VMC_msg, "VMC file creation aborted");
             SignalSema(genvmc_abort_finished_sema);
+        } else if (r == -98) {
+            strcpy(genvmc_stats.VMC_msg, "No Card found or damaged FS");
+        } else if (r == -99) {
+            strcpy(genvmc_stats.VMC_msg, "Could not read cluster buffer");
         } else
             strcpy(genvmc_stats.VMC_msg, "Failed to format VMC file");
 
