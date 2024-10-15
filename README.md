@@ -12,13 +12,12 @@ Review the LICENSE file for further details.
 ## Introduction
 
 Open PS2 Loader (OPL) is a 100% Open source game and application loader for
-the PS2 and PS3 units. It supports three categories of devices: USB mass
-storage devices, SMB shares and the PlayStation 2 HDD unit. USB devices and
-SMB shares support USBExtreme and \*.ISO formats while PS2 HDD supports HDLoader
-format, all devices also support ZSO format (compressed ISO). It's now the most compatible homebrew loader.
+the PS2 and PS3 units. It supports five categories of devices: USB mass
+storage devices, MX4SIO (SD card connected to memory card port via adapter), iLink (SBP2 compliant storage devices via IEE1394), SMBv1 shares and the PlayStation 2 HDD unit.  
+USB devices and SMB shares support USBExtreme and \*.ISO formats while PS2 HDD supports HDLoader format,
+all devices also support ZSO format (compressed ISO). It's now the most compatible homebrew loader.
 
-OPL developed continuously - anyone can contribute improvements to
-the project due to its open-source nature.
+OPL is developed continuously - anyone can contribute improvements to the project due to its open-source nature.
 
 You can visit the Open PS2 Loader forum at:
 
@@ -60,7 +59,7 @@ USB modes:
 | Folder | Description                                          | Modes       |
 | ------ | ---------------------------------------------------- | ----------- |
 | `CD`   | for games on CD media - i.e. blue-bottom discs       | USB and SMB |
-| `DVD`  | for DVD5 and DVD9 images if using the NTFS file system on USB or SMB; DVD9 images must be split and placed into the device root if using the FAT32 file system on USB or SMB | USB and SMB |
+| `DVD`  | for DVD5 and DVD9 images (if filesystem supports +4gb files) | USB and SMB |
 | `VMC`  | for Virtual Memory Card images - from 8MB up to 64MB | all         |
 | `CFG`  | for saving per-game configuration files              | all         |
 | `ART`  | for game art images                                  | all         |
@@ -70,7 +69,7 @@ USB modes:
 
 OPL will automatically create the above directory structure the first time you launch it and enable your favorite device.
 
-For HDD users, OPL will read `hdd0:__common/OPL/conf_hdd.cfg` for the config entry "hdd_partition" to use as your OPL partition.
+For HDD users, OPL will read `hdd0:__common/OPL/conf_hdd.cfg` for the config entry `hdd_partition` to use as your OPL partition.
 If not found a config file, a 128Mb `+OPL` partition will be created. You can edit the config if you wish to use/create a different partition.
 All partitions created by OPL will be 128Mb (it is not recommended to enlarge partitions as it will break LBAs, instead remove and recreate manually with uLaunchELF at a larger size if needed).
 
@@ -79,13 +78,14 @@ All partitions created by OPL will be 128Mb (it is not recommended to enlarge pa
 
 <details>
   <summary> <b> USB </b> </summary>
-<p>
 
-Game files on USB must be perfectly defragmented either file by file or
-by whole drive, and Dual Layer DVD9 images must be split to avoid the 4GB
-limitations of the FAT32 file system. We do not recommend using any programs.
-The best way for defragmenting - copy all files to pc, format USB, copy all files back.
+
+Game files on USB must be ideally defragmented either file by file or by whole drive,
+and games larger than 4gb must use USBExtreme format if device uses FAT32 format.  
+We do not recommend using any defrag programs. The best way for defragmenting - copy all files to pc, format USB, copy all files back.
 Repeat it once you faced defragmenting problem again.
+
+> NOTE: partial file fragmentation is supported (up to 64 fragments!) since OPL v1.2.0 - rev1893
 
 You also need a PC program to convert or split games into USB Advance/Extreme
 format, such as USBUtil 2.0.
@@ -100,9 +100,7 @@ format, such as USBUtil 2.0.
 For loading games by SMB protocol, you need to share a folder (ex: PS2SMB)
 on the host machine or NAS device and make sure that it has full read and
 write permissions. USB Advance/Extreme format is optional - \*.ISO images
-are supported using the folder structure above with the bonus that
-DVD9 images don't have to be split if your SMB device uses the NTFS or
-EXT3/4 file system.
+are supported using the folder structure above.
 
 </p>
 </details>
